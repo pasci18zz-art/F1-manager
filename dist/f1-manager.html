@@ -465,6 +465,28 @@ body::before{background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-fi
   background:linear-gradient(to bottom,color-mix(in srgb,var(--bg) 78%,transparent) 0%,color-mix(in srgb,var(--bg) 70%,transparent) 75%,transparent 100%);
   backdrop-filter:blur(18px) saturate(170%);-webkit-backdrop-filter:blur(18px) saturate(170%);
   -webkit-mask-image:linear-gradient(to bottom,#000 78%,transparent);mask-image:linear-gradient(to bottom,#000 78%,transparent)}
+
+/* Umschalter mit gleitender Markierung */
+.seg{--sn:1;--si:0}
+.seg::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;z-index:0;border-radius:10px;background:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.22);
+  width:calc((100% - 8px - (var(--sn) - 1) * 2px) / var(--sn));transform:translateX(calc(var(--si) * (100% + 2px)));
+  transition:transform .55s cubic-bezier(.32,1.35,.45,1)}
+.seg.hop::before{animation:seghop .55s cubic-bezier(.3,.9,.4,1)}
+@keyframes seghop{0%{scale:1 1}35%{scale:1.08 .9}70%{scale:.98 1.03}100%{scale:1 1}}
+.seg.noind::before{display:none}
+.seg button{position:relative;z-index:1}
+.seg button[aria-pressed="true"]{background:none;box-shadow:none}
+
+/* Vollbild-Diagramm */
+.sheet.full{top:0;bottom:0;max-height:none;height:100%;border-radius:0;width:100%;padding-top:var(--sat)}
+@media (min-width:700px){.sheet.full{bottom:0;transform:translate(-50%,0) scale(.98);border-radius:0}.sheet.full.on{transform:translate(-50%,0)}}
+
+/* Raster: Flaggen, Sprint rot */
+table.mx thead th .flg{font-size:20px;line-height:1}
+table.mx thead th.spw{box-shadow:inset 0 3px 0 var(--red)}
+table.mx th.spc,table.mx td.spc{background:color-mix(in srgb,var(--red) 7%,var(--card))}
+table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))}
+.spb{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 4px;border-radius:6px;background:var(--red);color:#fff;font:800 12px var(--display)}
 </style>
 <div class="app">
   <header class="top" id="top">
@@ -739,7 +761,7 @@ function normApp(x){
 
 /* ================= Zustand ================= */
 var APP = normApp(null), SV = null, S = null;
-var ui = {view:"standings", wMode:"d", race:null, sess:"r", statKey:"pts", statScope:"season", hidden:{}, entryOpen:false};
+var ui = {view:"standings", wMode:"d", gMode:"r", race:null, sess:"r", statKey:"pts", statScope:"season", hidden:{}, entryOpen:false};
 var N = window.F1N || null, NATIVE = !!(N && N.native);
 
 function findSave(id){ for(var i=0;i<APP.saves.length;i++) if(APP.saves[i].id===id) return APP.saves[i]; return null; }
@@ -1390,7 +1412,25 @@ function render(anim){
   afterRender(anim);
 }
 function refresh(){ render(false); }
+/* Gleitende Markierung in allen Umschaltern, wie die Leiste unten */
+var SEGPREV={};
+function segInd(root){
+  (root||document).querySelectorAll(".seg").forEach(function(el){
+    var bs=el.querySelectorAll("button"), cur=-1;
+    bs.forEach(function(b,i){ if(b.getAttribute("aria-pressed")==="true") cur=i; });
+    el.style.setProperty("--sn", bs.length);
+    el.classList.toggle("noind", cur<0);
+    if(cur<0) return;
+    var key=(bs[0] && bs[0].getAttribute("data-act"))||"", prev=SEGPREV[key];
+    SEGPREV[key]=cur;
+    if(prev!=null && prev!==cur && prev<bs.length && APP.prefs.motion){
+      el.style.setProperty("--si", prev); void el.offsetWidth;
+      requestAnimationFrame(function(){ el.style.setProperty("--si", cur); el.classList.remove("hop"); void el.offsetWidth; el.classList.add("hop"); });
+    } else el.style.setProperty("--si", cur);
+  });
+}
 function afterRender(anim){
+  segInd($("main"));
   document.querySelectorAll("#main .chips").forEach(function(box){
     var a=box.querySelector(".chip[aria-pressed='true']");
     if(a) box.scrollLeft=Math.max(0, a.offsetLeft-box.offsetLeft-box.clientWidth/2+a.offsetWidth/2);
@@ -1506,6 +1546,26 @@ function cumulative(){
   }
   return {last:last, per:per};
 }
+function legendHtml(series, hid, mode){
+  return series.length ? '<div class="legend">'+series.map(function(s){
+    return '<button type="button" class="lg" data-act="lg" data-mode="'+mode+'" data-k="'+s.key+'" aria-pressed="'+(!hid[s.key])+'"><i style="background:'+s.color+(s.op ? ';opacity:'+s.op : '')+'"></i>'+esc(s.label)+'</button>';
+  }).join("")+'</div>' : '';
+}
+function chartHead(title, id, can){
+  return '<div class="chead"><h2>'+esc(title)+'</h2>'+(can ? '<button type="button" class="btn sm ghost" data-act="chart-full" data-chart="'+id+'" aria-label="'+esc(title)+' im Vollbild">'+ico('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',16,2.2)+' Vollbild</button>' : '')+'</div>';
+}
+function sheetChart(){
+  var o=CHARTS[SH.id];
+  if(!o) return {title:"Verlauf", body:""};
+  var w=Math.max(280, Math.min(innerWidth, 1100)-40), avail=Math.max(260, innerHeight-(o.mode ? 300 : 170));
+  var H=clamp(Math.round(640*avail/w), 220, 1400);
+  var fo={}; for(var k in o) fo[k]=o[k];
+  fo.id=o.id+"-fs"; fo.h=H;
+  var series=o.series.slice();
+  return {title:SH.title||"Verlauf", body:lineChart(fo)+(o.mode ? legendHtml(series, o.hidden||{}, o.mode)+
+    '<div class="row" style="margin-top:4px"><button type="button" class="btn sm" data-act="lg-top" data-mode="'+o.mode+'">Top 6</button><button type="button" class="btn sm" data-act="lg-all" data-mode="'+o.mode+'">Alle zeigen</button></div>' : '')+
+    '<p class="small muted" style="margin:0">Tipp auf das Diagramm für die Werte. Dreh das Handy quer für noch mehr Platz.</p>'};
+}
 function pointsChartCard(mode){
   var c=cumulative(), series=[], labels=["Start"];
   if(c){
@@ -1529,32 +1589,42 @@ function pointsChartCard(mode){
     series.forEach(function(s,i){ if(i>=6) ui.hidden[mode][s.key]=true; });
   }
   var hid=ui.hidden[mode];
-  var chart=lineChart({id:"pts-"+mode, series:series, labels:labels, hidden:hid, yMin:0, label:"Punkteverlauf",
+  var chart=lineChart({id:"pts-"+mode, mode:mode, series:series, labels:labels, hidden:hid, yMin:0, label:"Punkteverlauf",
     tipTitle:function(i){ return i===0 ? "Start" : raceLabel(S.races[i-1]); }});
-  var legend=series.length ? '<div class="legend">'+series.map(function(s){
-    return '<button type="button" class="lg" data-act="lg" data-mode="'+mode+'" data-k="'+s.key+'" aria-pressed="'+(!hid[s.key])+'"><i style="background:'+s.color+(s.op ? ';opacity:'+s.op : '')+'"></i>'+esc(s.label)+'</button>';
-  }).join("")+'</div>' : '';
+  var legend=legendHtml(series, hid, mode);
   var tools=series.length>6 ? '<div class="row" style="margin-top:8px"><button type="button" class="btn sm" data-act="lg-top" data-mode="'+mode+'">Top 6</button><button type="button" class="btn sm" data-act="lg-all" data-mode="'+mode+'">Alle zeigen</button></div>' : '';
-  return '<div class="card st" style="--i:2">'+cardHead("Saisonverlauf", "antippen für Werte")+chart+legend+tools+'</div>';
+  return '<div class="card st" style="--i:2">'+chartHead("Saisonverlauf", "pts-"+mode, labels.length>1)+chart+legend+tools+'</div>';
 }
 function matrixCard(st){
   if(!S.races.length) return '<div class="card">'+emptyBox(IC.race,"Kein Rennkalender","Lege in den Einstellungen Rennen an.")+'</div>';
-  var h=['<div class="card flush st" style="--i:1"><div class="gridwrap"><table class="mx"><thead><tr><th class="stk">Fahrer</th><th class="pts">Pkt</th>'];
-  S.races.forEach(function(R){ h.push('<th title="'+esc(R.name)+'">'+esc(raceCode(R))+(S.sprints[R.id] ? '<sup style="color:var(--accent)">S</sup>' : '')+'</th>'); });
+  var qm=ui.gMode==="q", main=qm ? "q" : "r", side=qm ? "sq" : "s";
+  var cols=[];
+  S.races.forEach(function(R){
+    if(S.sprints[R.id]) cols.push({R:R, k:side, sp:true});
+    cols.push({R:R, k:main, sp:false, spw:!!S.sprints[R.id]});
+  });
+  var h=['<div class="seg sm st" style="--i:1" role="group" aria-label="Raster zeigt">'+segBtns("gmode", ui.gMode, [["r","Rennen"],["q","Qualifying"]])+'</div>',
+    '<div class="card flush st" style="--i:2"><div class="gridwrap"><table class="mx"><thead><tr><th class="stk">Fahrer</th><th class="pts">Pkt</th>'];
+  cols.forEach(function(c){
+    var cls=(c.sp ? 'spc' : '')+(c.sp||c.spw ? ' spw' : '');
+    h.push('<th class="'+cls+'" title="'+esc(c.R.name+(c.sp ? (qm ? " · Sprint-Quali" : " · Sprint") : (qm ? " · Qualifying" : " · Rennen")))+'">'+
+      (c.sp ? '<span class="spb">'+(qm ? 'SQ' : 'S')+'</span>' : '<span class="flg">'+(c.R.flag ? esc(c.R.flag) : esc(raceCode(c.R)))+'</span>')+'</th>');
+  });
   h.push('</tr></thead><tbody>');
   st.forEach(function(r){
     var d=r.d;
     h.push('<tr><td class="stk"><span class="nm">'+dLogo(d,24)+'<span>'+esc(dname(d))+'</span></span></td><td class="pts num">'+r.pts+'</td>');
-    S.races.forEach(function(R){
-      var Rs=S.res[R.id], v=Rs.r[d], q=Rs.q[d];
-      h.push('<td>'+cellHtml(v, Rs.flr===d, 'data-act="goto-race" data-r="'+esc(R.id)+'" title="'+esc(R.name+": Start "+(isNum(q)?"P"+q:"–")+", Ziel "+(v===DNF?"DNF":(isNum(v)?"P"+v:"–")))+'"')+'</td>');
+    cols.forEach(function(c){
+      var Rs=S.res[c.R.id], v=Rs[c.k][d], fl = c.k==="r" ? Rs.flr===d : (c.k==="s" ? Rs.fls===d : false);
+      h.push('<td class="'+(c.sp ? 'spc' : '')+'">'+cellHtml(v, fl, 'data-act="goto-race" data-r="'+esc(c.R.id)+'" data-s="'+c.k+'" title="'+esc(c.R.name+" · "+SESSLBL[c.k]+": "+(v===DNF ? "DNF" : (isNum(v) ? "P"+v : "–")))+'"')+'</td>');
     });
     h.push('</tr>');
   });
   h.push('</tbody></table></div></div>');
-  h.push('<div class="legend st" style="--i:2">'+
-    '<span class="lg">'+cellHtml(1)+' Sieg</span><span class="lg">'+cellHtml(2)+' Podium</span><span class="lg">'+cellHtml(7)+' Punkte</span>'+
-    '<span class="lg">'+cellHtml(DNF)+' Ausfall</span><span class="lg">'+cellHtml(12,true)+' Schnellste Runde</span></div>');
+  h.push('<div class="legend st" style="--i:3">'+
+    '<span class="lg">'+cellHtml(1)+(qm ? ' Pole' : ' Sieg')+'</span><span class="lg">'+cellHtml(2)+' Top 3</span><span class="lg">'+cellHtml(7)+' Top 10</span>'+
+    (qm ? '' : '<span class="lg">'+cellHtml(DNF)+' Ausfall</span><span class="lg">'+cellHtml(12,true)+' Schnellste Runde</span>')+
+    '<span class="lg"><span class="spb">S</span> Sprint-Wochenende</span></div>');
   return h.join("");
 }
 
@@ -1918,7 +1988,7 @@ function vTeams(){
     var lastVals=S.power[S.races[idxs[idxs.length-1]].id];
     var curRows=S.teams.map(function(t,k){ return {t:t, v:lastVals[k]}; }).filter(function(x){ return isNum(x.v); }).sort(function(a,b){ return b.v-a.v; });
     var firstVals=S.power[S.races[idxs[0]].id];
-    dev='<div class="card st" style="--i:3">'+cardHead("Entwicklung der Autos", plural(idxs.length,"Messung","Messungen"))+
+    dev='<div class="card st" style="--i:3">'+chartHead("Entwicklung der Autos", "dev", idxs.length>1)+
       (idxs.length>1 ? lineChart({id:"dev", series:series, labels:idxs.map(function(i){ return raceCode(S.races[i]); }), dots:true, label:"Autostärke pro Team",
         tipTitle:function(j){ return "vor "+S.races[idxs[j]].name; }}) : '<p class="small muted" style="margin:0 0 8px">Ab zwei Messungen siehst du hier, wie sich die Teams entwickeln.</p>')+
       '<div style="margin-top:8px">'+curRows.map(function(x){
@@ -2031,6 +2101,7 @@ function renderSheet(){
   else if(SH.type==="entry") r=sheetEntry();
   else if(SH.type==="logo") r=sheetLogo();
   else if(SH.type==="crop") r=sheetCrop();
+  else if(SH.type==="chart") r=sheetChart();
   else if(SH.type==="power") r=sheetPower();
   else if(SH.type==="confirm") r=sheetConfirm();
   else r={title:"", body:""};
@@ -2040,6 +2111,8 @@ function renderSheet(){
   body.scrollTop=keep; SH.keepScroll=false;
   var f=$("sheet-foot");
   f.hidden=!r.foot; f.innerHTML=r.foot||"";
+  $("sheet").classList.toggle("full", SH.type==="chart");
+  segInd(body);
   if(SH.type==="crop") cropInit();
 }
 function closeSheet(){
@@ -2455,13 +2528,15 @@ document.addEventListener("click", function(e){
   switch(a){
     case "nav": go(v); break;
     case "wmode": ui.wMode=v; saveUi(); refresh(); break;
-    case "lg": { var m=el.getAttribute("data-mode"), k=el.getAttribute("data-k"); ui.hidden[m]=ui.hidden[m]||{}; ui.hidden[m][k]=!ui.hidden[m][k]; refresh(); break; }
-    case "lg-all": ui.hidden[el.getAttribute("data-mode")]={}; refresh(); break;
-    case "lg-top": ui.hidden[el.getAttribute("data-mode")]=null; refresh(); break;
+    case "lg": { var m=el.getAttribute("data-mode"), k=el.getAttribute("data-k"); ui.hidden[m]=ui.hidden[m]||{}; ui.hidden[m][k]=!ui.hidden[m][k]; refresh(); if(SH && SH.type==="chart"){ SH.keepScroll=true; renderSheet(); } break; }
+    case "chart-full": SH={type:"chart", id:el.getAttribute("data-chart"), title:(el.closest(".chead").querySelector("h2")||{}).textContent}; showSheet(); break;
+    case "gmode": ui.gMode=v; refresh(); break;
+    case "lg-all": ui.hidden[el.getAttribute("data-mode")]={}; refresh(); if(SH && SH.type==="chart"){ SH.keepScroll=true; renderSheet(); } break;
+    case "lg-top": ui.hidden[el.getAttribute("data-mode")]=null; refresh(); if(SH && SH.type==="chart"){ SH.keepScroll=true; renderSheet(); } break;
     case "tip": showTip(el); break;
     case "driver": openDriver(+el.getAttribute("data-d")); break;
     case "career": SH={type:"career", k:el.getAttribute("data-k")}; showSheet(); break;
-    case "goto-race": if(SH) closeSheet(); ui.race=el.getAttribute("data-r"); ui.sess="r"; if(ui.view!=="race"){ ui.view="race"; saveUi(); window.scrollTo(0,0); render(true); } else refresh(); break;
+    case "goto-race": if(SH) closeSheet(); ui.race=el.getAttribute("data-r"); ui.sess=el.getAttribute("data-s")||"r"; if(ui.view!=="race"){ ui.view="race"; saveUi(); window.scrollTo(0,0); render(true); } else refresh(); break;
     case "race": ui.race=el.getAttribute("data-r"); refresh(); break;
     case "race-step": { var i=raceIndex(ui.race)+(+v); if(i>=0 && i<S.races.length){ ui.race=S.races[i].id; render(true); } break; }
     case "sess": ui.sess=v; refresh(); break;
@@ -2610,17 +2685,27 @@ $("scrim").addEventListener("click", closeSheet);
 /* Wischen links/rechts wechselt den Tab */
 (function(){
   var sx=0, sy=0, st=0, on=false;
-  var NOSWIPE=".chips,.gridwrap,.strip,.chartbox,.cropbox,input,textarea,select,.range,.seg";
+  var NOSWIPE=".chips,.gridwrap,.strip,.chartbox,.cropbox,input,textarea,select,.range", segEl=null;
   document.addEventListener("touchstart", function(e){
-    on=false;
-    if(!S || SH || e.touches.length!==1) return;
-    var t=e.target;
-    if(!t.closest || !t.closest("#main") || t.closest(NOSWIPE)) return;
+    on=false; segEl=null;
+    if(!S || e.touches.length!==1) return;
+    var t=e.target; if(!t.closest) return;
+    var sg=t.closest(".seg");
+    if(sg){ segEl=sg; }
+    else if(SH || !t.closest("#main") || t.closest(NOSWIPE)) return;
     sx=e.touches[0].clientX; sy=e.touches[0].clientY; st=Date.now(); on=true;
   }, {passive:true});
   document.addEventListener("touchend", function(e){
     if(!on) return; on=false;
     var c=e.changedTouches[0], dx=c.clientX-sx, dy=c.clientY-sy;
+    if(segEl){
+      if(Math.abs(dx)<30 || Math.abs(dx)<Math.abs(dy)) return;
+      var bs=[].slice.call(segEl.querySelectorAll("button")), ci=-1;
+      bs.forEach(function(b,j){ if(b.getAttribute("aria-pressed")==="true") ci=j; });
+      var nb=bs[ci+(dx<0 ? 1 : -1)];
+      if(nb && !nb.disabled){ e.preventDefault && 0; nb.click(); }
+      return;
+    }
     if(Date.now()-st>700 || Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.6) return;
     var i=0; VIEWS.forEach(function(v,j){ if(v.k===ui.view) i=j; });
     var n=i+(dx<0 ? 1 : -1);

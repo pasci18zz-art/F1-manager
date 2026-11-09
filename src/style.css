@@ -458,3 +458,25 @@ body::before{background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-fi
   background:linear-gradient(to bottom,color-mix(in srgb,var(--bg) 78%,transparent) 0%,color-mix(in srgb,var(--bg) 70%,transparent) 75%,transparent 100%);
   backdrop-filter:blur(18px) saturate(170%);-webkit-backdrop-filter:blur(18px) saturate(170%);
   -webkit-mask-image:linear-gradient(to bottom,#000 78%,transparent);mask-image:linear-gradient(to bottom,#000 78%,transparent)}
+
+/* Umschalter mit gleitender Markierung */
+.seg{--sn:1;--si:0}
+.seg::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;z-index:0;border-radius:10px;background:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.22);
+  width:calc((100% - 8px - (var(--sn) - 1) * 2px) / var(--sn));transform:translateX(calc(var(--si) * (100% + 2px)));
+  transition:transform .55s cubic-bezier(.32,1.35,.45,1)}
+.seg.hop::before{animation:seghop .55s cubic-bezier(.3,.9,.4,1)}
+@keyframes seghop{0%{scale:1 1}35%{scale:1.08 .9}70%{scale:.98 1.03}100%{scale:1 1}}
+.seg.noind::before{display:none}
+.seg button{position:relative;z-index:1}
+.seg button[aria-pressed="true"]{background:none;box-shadow:none}
+
+/* Vollbild-Diagramm */
+.sheet.full{top:0;bottom:0;max-height:none;height:100%;border-radius:0;width:100%;padding-top:var(--sat)}
+@media (min-width:700px){.sheet.full{bottom:0;transform:translate(-50%,0) scale(.98);border-radius:0}.sheet.full.on{transform:translate(-50%,0)}}
+
+/* Raster: Flaggen, Sprint rot */
+table.mx thead th .flg{font-size:20px;line-height:1}
+table.mx thead th.spw{box-shadow:inset 0 3px 0 var(--red)}
+table.mx th.spc,table.mx td.spc{background:color-mix(in srgb,var(--red) 7%,var(--card))}
+table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))}
+.spb{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 4px;border-radius:6px;background:var(--red);color:#fff;font:800 12px var(--display)}
