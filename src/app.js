@@ -1399,6 +1399,10 @@ function shortName(d){
   if(n.length<=13) return n;
   var p=n.split(/\s+/); return p[p.length-1];
 }
+function dNum(d, t){
+  var n=dnum(d);
+  return '<span class="dnum" style="background:'+t.color+';color:'+inkOn(t.color)+'">'+(n ? esc(n) : '\u2013')+'</span>';
+}
 function duelRow(label, va, vb, color, opt){
   opt=opt||{};
   var na=va==null ? null : +va, nb=vb==null ? null : +vb, fa=0.5;
@@ -1425,7 +1429,7 @@ function teamCompareCards(n0){
       return;
     }
     var a=drv[0], b=drv[1], A=ds[a], B=ds[b], q=h2h(a,b,"q"), rr=h2h(a,b,"r");
-    var body='<div class="duelnames"><span>'+dLogo(a,26)+'<b>'+esc(shortName(a))+'</b></span><span class="r"><b>'+esc(shortName(b))+'</b>'+dLogo(b,26)+'</span></div>'+
+    var body='<div class="duelnames"><span>'+dNum(a,t)+'<b>'+esc(shortName(a))+'</b></span><span class="r"><b>'+esc(shortName(b))+'</b>'+dNum(b,t)+'</span></div>'+
       duelRow("Punkte", A.pts, B.pts, t.color)+
       duelRow("Quali-Duell", q[0], q[1], t.color)+
       duelRow("Rennduell", rr[0], rr[1], t.color)+

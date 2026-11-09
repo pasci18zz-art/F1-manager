@@ -480,3 +480,4 @@ table.mx thead th.spw{box-shadow:inset 0 3px 0 var(--red)}
 table.mx th.spc,table.mx td.spc{background:color-mix(in srgb,var(--red) 7%,var(--card))}
 table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))}
 .spb{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 4px;border-radius:6px;background:var(--red);color:#fff;font:800 12px var(--display)}
+.dnum{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 6px;border-radius:8px;font:800 15px var(--display);font-variant-numeric:tabular-nums;flex:0 0 auto}
