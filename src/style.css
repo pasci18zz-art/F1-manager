@@ -481,3 +481,20 @@ table.mx th.spc,table.mx td.spc{background:color-mix(in srgb,var(--red) 7%,var(-
 table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))}
 .spb{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 4px;border-radius:6px;background:var(--red);color:#fff;font:800 12px var(--display)}
 .dnum{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 6px;border-radius:8px;font:800 15px var(--display);font-variant-numeric:tabular-nums;flex:0 0 auto}
+
+/* Rennkalender sortieren */
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper .inp.n{width:64px}
+.calsort{position:relative}
+.calrow{background:var(--card);transition:transform .25s cubic-bezier(.2,.8,.2,1);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.calrow .grip{display:flex;align-items:center;justify-content:center;width:26px;height:44px;color:var(--ink-3);cursor:grab;touch-action:none;flex:0 0 auto}
+.calrow .calno{width:22px;font:800 16px var(--display);color:var(--ink-3);text-align:center;flex:0 0 auto}
+.calsort.sorting .calrow{transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.calrow.dragging{transition:none!important;position:relative;z-index:5;border-radius:14px;box-shadow:var(--shadow);scale:1.03;background:var(--card-2)}
+
+.dnum.sm{min-width:24px;height:20px;padding:0 4px;border-radius:6px;font-size:12px;margin-right:6px;vertical-align:1px}
+.brow .lbl{width:138px}
+.li.cmini{min-height:48px;padding-block:6px}
+.calrow{gap:6px}
+.calrow .inp.fl{width:46px;font-size:18px}
+.calrow .calno{width:18px}

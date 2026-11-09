@@ -488,6 +488,23 @@ table.mx th.spc,table.mx td.spc{background:color-mix(in srgb,var(--red) 7%,var(-
 table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))}
 .spb{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 4px;border-radius:6px;background:var(--red);color:#fff;font:800 12px var(--display)}
 .dnum{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 6px;border-radius:8px;font:800 15px var(--display);font-variant-numeric:tabular-nums;flex:0 0 auto}
+
+/* Rennkalender sortieren */
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper .inp.n{width:64px}
+.calsort{position:relative}
+.calrow{background:var(--card);transition:transform .25s cubic-bezier(.2,.8,.2,1);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.calrow .grip{display:flex;align-items:center;justify-content:center;width:26px;height:44px;color:var(--ink-3);cursor:grab;touch-action:none;flex:0 0 auto}
+.calrow .calno{width:22px;font:800 16px var(--display);color:var(--ink-3);text-align:center;flex:0 0 auto}
+.calsort.sorting .calrow{transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.calrow.dragging{transition:none!important;position:relative;z-index:5;border-radius:14px;box-shadow:var(--shadow);scale:1.03;background:var(--card-2)}
+
+.dnum.sm{min-width:24px;height:20px;padding:0 4px;border-radius:6px;font-size:12px;margin-right:6px;vertical-align:1px}
+.brow .lbl{width:138px}
+.li.cmini{min-height:48px;padding-block:6px}
+.calrow{gap:6px}
+.calrow .inp.fl{width:46px;font-size:18px}
+.calrow .calno{width:18px}
 </style>
 <div class="app">
   <header class="top" id="top">
@@ -529,7 +546,7 @@ table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))
 "use strict";
 
 /* ================= Konstanten ================= */
-var ND = 22;
+var MAXD = 24, ND = 22; /* MAXD: Speicherplätze je Saison, ND: Fahrer im Feld der aktuellen Saison */
 var SPRINT_F2 = [0,10,8,6,5,4,3,2,1];
 var SPRINT_F1 = [0,8,7,6,5,4,3,2,1];
 var RACE_PTS  = [0,25,18,15,12,10,8,6,4,2,1];
@@ -561,7 +578,7 @@ function isNum(v){ return typeof v==="number"; }
 function plural(n, one, many){ return n+" "+(n===1 ? one : many); }
 function fmt1(v){ return v==null ? "–" : v.toFixed(1).replace(".", ","); }
 function signed(v){ return v==null ? "–" : (v>0 ? "+"+v : (v<0 ? "−"+(-v) : "0")); }
-function nulls(){ var a=[], i; for(i=0;i<ND;i++) a.push(null); return a; }
+function nulls(){ var a=[], i; for(i=0;i<MAXD;i++) a.push(null); return a; }
 function hexc(c, fb){ return (typeof c==="string" && /^#[0-9a-fA-F]{6}$/.test(c)) ? c : fb; }
 function natCmp(a,b){ try{ return String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}); }catch(e){ return a<b?-1:(a>b?1:0); } }
 function ico(p, size, sw){
@@ -623,8 +640,8 @@ function normWx(v){
 function wxIcon(k, size){ var w=wxDef(k); return w ? '<span class="wx wx-'+k+'" title="'+w[1]+'">'+ico(w[2], size||16, 2)+'</span>' : ''; }
 function cleanVal(v){
   if(v===DNF) return DNF;
-  if(typeof v==="number" && v>=1 && v<=ND) return v;
-  if(typeof v==="string" && /^\d+$/.test(v)){ var n=parseInt(v,10); if(n>=1 && n<=ND) return n; }
+  if(typeof v==="number" && v>=1 && v<=MAXD) return v;
+  if(typeof v==="string" && /^\d+$/.test(v)){ var n=parseInt(v,10); if(n>=1 && n<=MAXD) return n; }
   return null;
 }
 function cleanLogo(s){
@@ -637,13 +654,15 @@ function normTeam(t, k){
           short:(typeof t.short==="string") ? t.short.trim().slice(0,4) : "",
           logo:cleanLogo(t.logo)};
 }
-function freshSeason(name, drivers, teams, dTeam, races, sprints, mode){
+function normNd(n){ n=parseInt(n,10); return (n>=10 && n<=MAXD) ? n : 22; }
+function freshSeason(name, drivers, teams, dTeam, races, sprints, mode, nd){
   var i, d=[], t=[], dt=[], rs=[], res={}, sp={};
   if(drivers) d = drivers.map(function(x){ return {name:x.name, num:x.num}; });
-  else for(i=0;i<ND;i++) d.push({name:"Fahrer "+(i+1), num:String(i+1)});
+  for(i=d.length;i<MAXD;i++) d.push({name:"Fahrer "+(i+1), num:String(i+1)});
   if(teams) t = teams.map(function(x,k){ return normTeam(x,k); });
   else for(i=0;i<11;i++) t.push(normTeam({name:"Team "+(i+1)}, i));
-  if(dTeam) dt = dTeam.slice(); else for(i=0;i<ND;i++) dt.push(Math.min(Math.floor(i/2), t.length-1));
+  if(dTeam) dt = dTeam.slice();
+  for(i=dt.length;i<MAXD;i++) dt.push(Math.min(Math.floor(i/2), t.length-1));
   if(races){
     rs = races.map(function(x){ return {id:x.id, flag:x.flag, name:x.name}; });
     for(i=0;i<rs.length;i++){ res[rs[i].id]=blankSession(); sp[rs[i].id] = sprints ? !!sprints[rs[i].id] : false; }
@@ -656,7 +675,7 @@ function freshSeason(name, drivers, teams, dTeam, races, sprints, mode){
   }
   var maxN=0;
   rs.forEach(function(r){ var m=/^r(\d+)$/.exec(r.id); if(m && +m[1]>maxN) maxN=+m[1]; });
-  return {id:uid("s"), name:name||"Saison 1", mode:mode==="f1" ? "f1" : "f2",
+  return {id:uid("s"), name:name||"Saison 1", mode:mode==="f1" ? "f1" : "f2", nd:normNd(nd),
           drivers:d, teams:t, dTeam:dt, races:rs, sprints:sp, res:res, power:{}, nextId:maxN+1};
 }
 var FLAGRE = /^\s*((?:[\u{1F1E6}-\u{1F1FF}]{2})|(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}][\u{FE0F}\u{200D}]?)+)\s*/u;
@@ -673,7 +692,8 @@ function normSeason(x, idx){
   if(typeof x.name==="string" && x.name.trim()) out.name=x.name;
   else if(typeof x.season==="string" && x.season.trim()) out.name=x.season;
   out.mode = x.mode==="f1" ? "f1" : "f2";
-  if(Array.isArray(x.drivers)) for(i=0;i<ND;i++){
+  out.nd = normNd(x.nd);
+  if(Array.isArray(x.drivers)) for(i=0;i<MAXD;i++){
     var dv = x.drivers[i];
     if(typeof dv==="string") out.drivers[i]={name:dv, num:String(i+1)};
     else if(dv && typeof dv==="object"){
@@ -682,7 +702,7 @@ function normSeason(x, idx){
     }
   }
   if(Array.isArray(x.teams) && x.teams.length) out.teams = x.teams.map(normTeam);
-  for(i=0;i<ND;i++){
+  for(i=0;i<MAXD;i++){
     var v = Array.isArray(x.dTeam) ? x.dTeam[i] : undefined;
     out.dTeam[i] = (typeof v==="number" && v>=0 && v<out.teams.length) ? v : Math.min(Math.floor(i/2), out.teams.length-1);
   }
@@ -708,13 +728,13 @@ function normSeason(x, idx){
     var rid=out.races[i].id, src=x.res[rid];
     if(!src) continue;
     ["q","sq","s","r"].forEach(function(k){
-      if(Array.isArray(src[k])) for(j=0;j<ND;j++) out.res[rid][k][j]=cleanVal(src[k][j]);
+      if(Array.isArray(src[k])) for(j=0;j<MAXD;j++) out.res[rid][k][j]=cleanVal(src[k][j]);
     });
     if(src.wx && typeof src.wx==="object") ["q","sq","s","r"].forEach(function(k){ var w=normWx(src.wx[k]); if(w) out.res[rid].wx[k]=w; });
     if(typeof src.notes==="string") out.res[rid].notes=src.notes.slice(0,4000);
     else if(typeof src.note==="string") out.res[rid].notes=src.note.slice(0,4000);
-    if(typeof src.fls==="number" && src.fls>=0 && src.fls<ND) out.res[rid].fls=src.fls;
-    if(typeof src.flr==="number" && src.flr>=0 && src.flr<ND) out.res[rid].flr=src.flr;
+    if(typeof src.fls==="number" && src.fls>=0 && src.fls<MAXD) out.res[rid].fls=src.fls;
+    if(typeof src.flr==="number" && src.flr>=0 && src.flr<MAXD) out.res[rid].flr=src.flr;
   }
   out.power={};
   if(x.power && typeof x.power==="object") out.races.forEach(function(R){
@@ -773,11 +793,12 @@ function pickCurrent(){
   if(SV){
     APP.curSave = SV.id;
     if(!SV.seasons.length) SV.seasons.push(freshSeason("Saison 1"));
-    S = findSeason(SV, SV.cur) || lastSeason(SV);
+    setS(findSeason(SV, SV.cur) || lastSeason(SV));
     SV.cur = S.id;
-  } else S = null;
+  } else setS(null);
 }
-function withSeason(season, fn){ var keep=S; S=season; try{ return fn(); } finally{ S=keep; } }
+function setS(se){ S=se; ND = se ? normNd(se.nd) : 22; }
+function withSeason(season, fn){ var keep=S; setS(season); try{ return fn(); } finally{ setS(keep); } }
 function uniqueName(base){
   var taken={}, n=2, nm=base;
   APP.saves.forEach(function(s){ taken[s.name]=true; });
@@ -790,7 +811,11 @@ var KEY="f1-manager-v1", KEY_BAK="f1-manager-v1-bak";
 var OLD_V5=["f1-karriere-v5","f1-karriere-v5-bak"], OLD_V1=["f1-karriere-v1","f1-karriere-v1-bak"];
 var saveT=null, lastSaved=null, storageOk=true;
 
+var prefT=null, prefBlob=null;
+function savePrefs(){ clearTimeout(prefT); if(!NATIVE || prefBlob===null) return; var b=prefBlob; prefBlob=null;
+  N.Preferences.set({key:KEY, value:b}).then(function(){ if(!storageOk){ storageOk=true; lastSaved=new Date(); showBanner(); } }).catch(function(){}); }
 function saveLocal(){
+  clearTimeout(saveT);
   var blob;
   try{ blob=JSON.stringify(APP); }catch(e){ return; }
   try{
@@ -798,13 +823,14 @@ function saveLocal(){
     localStorage.setItem(KEY_BAK, blob);
     lastSaved=new Date(); storageOk=true;
   }catch(e){ storageOk=false; }
-  if(NATIVE){ N.Preferences.set({key:KEY, value:blob}).then(function(){ if(!storageOk){ storageOk=true; lastSaved=new Date(); showBanner(); } }).catch(function(){}); }
+  // Die Kopie in den Android-Einstellungen ist nur die Rückfallebene: selten schreiben, beim Verlassen sofort
+  if(NATIVE){ prefBlob=blob; clearTimeout(prefT); prefT=setTimeout(savePrefs, 8000); }
   showBanner();
 }
-function flush(){ clearTimeout(saveT); saveLocal(); }
+function flush(){ clearTimeout(saveT); saveLocal(); savePrefs(); }
 function touch(){
   APP.updatedAt=Date.now();
-  clearTimeout(saveT); saveT=setTimeout(saveLocal, 300);
+  clearTimeout(saveT); saveT=setTimeout(saveLocal, (SH && SH.type==="entry") ? 1200 : 400);
   updateHeader();
 }
 function loadApp(){
@@ -1188,10 +1214,8 @@ function pctTxt(p){
 function seasonDiff(oldS, newDrivers, newDTeam, teams){
   function tn(tl, dt, d){ var t=tl[dt[d]]; return t ? t.name : "–"; }
   var om={}, nm={}, out=[], d, k;
-  for(d=0; d<ND; d++){
-    var a=String(oldS.drivers[d].name||"").trim(); if(a) om[a.toLowerCase()]={name:a, team:tn(oldS.teams, oldS.dTeam, d)};
-    var b=String(newDrivers[d].name||"").trim(); if(b) nm[b.toLowerCase()]={name:b, team:tn(teams, newDTeam, d)};
-  }
+  for(d=0; d<normNd(oldS.nd); d++){ var a=String(oldS.drivers[d].name||"").trim(); if(a) om[a.toLowerCase()]={name:a, team:tn(oldS.teams, oldS.dTeam, d)}; }
+  for(d=0; d<ND; d++){ var b=String(newDrivers[d].name||"").trim(); if(b) nm[b.toLowerCase()]={name:b, team:tn(teams, newDTeam, d)}; }
   for(k in nm){
     if(om[k]){ if(om[k].team!==nm[k].team) out.push({type:"move", name:nm[k].name, from:om[k].team, to:nm[k].team}); }
     else out.push({type:"in", name:nm[k].name, to:nm[k].team});
@@ -1496,7 +1520,7 @@ function vStandings(){
     h.push('<div class="cols"><div class="stack">'+teamListCard()+'</div><div class="stack">'+pointsChartCard("t")+'</div></div>');
     return h.join("");
   }
-  h.push('<div class="cols"><div class="stack">'+leaderCard(st)+driverListCard(st)+'</div><div class="stack">'+pointsChartCard("d")+'</div></div>');
+  h.push('<div class="cols"><div class="stack">'+leaderCard(st)+driverListCard(st)+'</div><div class="stack">'+pointsChartCard("d")+constructorsMini()+'</div></div>');
   return h.join("");
 }
 function leaderCard(st){
@@ -1515,14 +1539,24 @@ function leaderCard(st){
     (st[1] ? ' · <span class="plus">+'+gap+'</span> auf '+esc(dname(st[1].d)) : '')+'</span></span></button>';
 }
 function driverListCard(st){
-  var lead=st[0] ? st[0].pts : 0;
+  var lead=st[0] ? st[0].pts : 0, skip=lead>0 ? 1 : 0;
   return '<div class="card flush st" style="--i:2"><div class="list">'+st.map(function(r,i){
+    if(i<skip) return "";
     var d=r.d, t=teamOfD(d), pc=r.pts>0 ? (i===0 ? "g" : i===1 ? "s" : i===2 ? "b" : "") : "";
     return '<button type="button" class="li st" style="--i:'+(i+3)+'" data-act="driver" data-d="'+d+'">'+
       '<span class="pos '+pc+'">'+(i+1)+'</span>'+dLogo(d,36)+
       '<span class="who"><span class="n">'+esc(dname(d))+numTag(d)+'</span><span class="m">'+esc(t ? t.name : "–")+(r.rc[1] ? ' · '+plural(r.rc[1],"Sieg","Siege") : '')+'</span></span>'+
       '<span class="aux num">'+(i>0 && lead>0 ? '−'+(lead-r.pts) : '')+'</span>'+
       '<span class="val num">'+r.pts+'</span></button>';
+  }).join("")+'</div></div>';
+}
+function constructorsMini(){
+  var ts=teamStandings(), lead=ts[0] ? Math.max(1, ts[0].pts) : 1;
+  return '<div class="card flush st" style="--i:3"><div class="chead"><h2>Konstrukteure</h2><button type="button" class="btn sm ghost" data-act="wmode" data-v="t">Alle Details</button></div><div class="list">'+ts.map(function(r,i){
+    var t=S.teams[r.t], pc=r.pts>0 ? (i===0 ? "g" : i===1 ? "s" : i===2 ? "b" : "") : "";
+    return '<div class="li cmini"><span class="pos '+pc+'">'+(i+1)+'</span>'+logoHtml(t,30)+
+      '<span class="who"><span class="n">'+esc(t.name)+'</span><span class="bar" style="height:5px;margin-top:5px"><i style="width:'+(r.pts/lead*100).toFixed(1)+'%;background:'+t.color+'"></i></span></span>'+
+      '<span class="val num" style="font-size:19px">'+r.pts+'</span></div>';
   }).join("")+'</div></div>';
 }
 function teamListCard(){
@@ -1799,7 +1833,7 @@ function vStats(){
       var shown = r.v==null ? "–" : (def.dec ? fmt1(r.v) : (def.signed ? signed(r.v) : r.v));
       return '<button type="button" class="brow st" style="--i:'+(i+7)+';width:100%;border:0;background:none;padding:2px 0;text-align:left;color:inherit" '+act(o)+'>'+
         '<span class="num" style="width:22px;text-align:right;color:var(--ink-3);font-weight:700">'+(i+1)+'</span>'+logoOf(o)+
-        '<span class="lbl">'+esc(o.name)+'</span><span class="bar"><i style="width:'+w.toFixed(1)+'%;background:'+color+'"></i></span><span class="v num">'+shown+'</span></button>';
+        '<span class="lbl">'+(all ? '' : dNumSm(o.d))+esc(o.name)+'</span><span class="bar"><i style="width:'+w.toFixed(1)+'%;background:'+color+'"></i></span><span class="v num">'+shown+'</span></button>';
     }).join("")+'</div>');
   return h.join("");
 }
@@ -1926,6 +1960,7 @@ function shortName(d){
   if(n.length<=13) return n;
   var p=n.split(/\s+/); return p[p.length-1];
 }
+function dNumSm(d){ var n=dnum(d), t=teamOfD(d); return n ? '<span class="dnum sm" style="background:'+(t ? t.color : "var(--card-2)")+';color:'+inkOn(t ? t.color : "#333")+'">'+esc(n)+'</span>' : ''; }
 function dNum(d, t){
   var n=dnum(d);
   return '<span class="dnum" style="background:'+t.color+';color:'+inkOn(t.color)+'">'+(n ? esc(n) : '\u2013')+'</span>';
@@ -2013,7 +2048,7 @@ function vTeams(){
       return '<li><span class="xi" style="background:var(--red-soft);color:var(--red)">−</span><span><b>'+esc(x.name)+'</b> verlässt das Feld (zuletzt '+esc(x.from)+')</span></li>';
     }).join("")+'</ul>' : '<p class="small muted" style="margin:0">Keine Wechsel – alle Fahrer bleiben in ihren Teams.</p>')+'</div>';
   }
-  h.push('<div class="cols"><div class="stack">'+stand+teamCompareCards(4)+'</div><div class="stack">'+dev+xfer+'</div></div>');
+  h.push('<div class="cols"><div class="stack">'+stand+'</div><div class="stack">'+dev+xfer+'</div></div>');
   return h.join("");
 }
 
@@ -2027,7 +2062,9 @@ function vSettings(){
     '<span class="small muted">'+esc(MODES[S.mode].desc)+'</span></div>'+
     '<div class="row"><button type="button" class="btn grow" data-act="new-season">'+ico(IC.plus,18)+' Neue Saison</button><button type="button" class="btn danger" data-act="del-season"'+(SV.seasons.length<2 ? ' disabled title="Die einzige Saison kann nicht gelöscht werden"' : '')+'>Saison löschen</button></div></div>');
   // Fahrer
-  h.push('<div class="card st" style="--i:1">'+cardHead("Fahrer", "Nummer · Name · Team")+S.drivers.map(function(dv,d){
+  h.push('<div class="card st" style="--i:1">'+cardHead("Fahrer", "Nummer · Name · Team")+
+    '<div class="field" style="margin-bottom:8px"><span class="lbl2">Fahrer im Feld</span><div class="seg sm" role="group" aria-label="Fahrer im Feld">'+segBtns("nd", String(ND), [["20","20"],["22","22"],["24","24"]])+'</div></div>'+
+    S.drivers.slice(0,ND).map(function(dv,d){
     return '<div class="drvrow"><input class="inp n" id="dnum-'+d+'" data-inp="dnum" data-d="'+d+'" value="'+esc(dv.num||"")+'" inputmode="numeric" maxlength="3" aria-label="Startnummer Fahrer '+(d+1)+'">'+
       '<input class="inp" id="dname-'+d+'" data-inp="dname" data-d="'+d+'" value="'+esc(dv.name)+'" aria-label="Name Fahrer '+(d+1)+'">'+
       '<span class="tsel">'+dLogo(d,36)+'<select class="inp" id="dteam-'+d+'" data-chg="dteam" data-d="'+d+'" aria-label="Team von '+esc(dv.name)+'">'+
@@ -2048,14 +2085,20 @@ function vSettings(){
   }).join("")+'<button type="button" class="btn wide" data-act="team-add" style="margin-top:8px">'+ico(IC.plus,18)+' Eigenes Team hinzufügen</button>'+
     '<p class="small muted" style="margin:8px 0 0">Tipp: Zeichne dein Logo, fotografiere es und wähle das Foto hier aus. Es wird automatisch quadratisch zugeschnitten.</p></div>');
   // Kalender
-  h.push('<div class="card st" style="--i:3">'+cardHead("Rennkalender", "Flagge · Name · Sprint")+S.races.map(function(R,i){
-    return '<div class="srow"><input class="inp fl" id="rflag-'+esc(R.id)+'" data-inp="rflag" data-r="'+esc(R.id)+'" value="'+esc(R.flag)+'" aria-label="Flagge">'+
+  h.push('<div class="card st" style="--i:3">'+cardHead("Rennkalender", "Flagge · Name · Sprint")+
+    '<div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:8px"><span><b>Anzahl Strecken</b><br><span class="small muted">zählt von oben nach unten</span></span>'+
+    '<span class="stepper"><button type="button" class="iconbtn" data-act="race-count" data-v="-1" aria-label="Eine Strecke weniger"'+(S.races.length<=1 ? ' disabled' : '')+'>'+ico('<path d="M5 12h14"/>',18,2.6)+'</button>'+
+    '<input class="inp n" id="race-count" type="number" inputmode="numeric" min="1" max="40" value="'+S.races.length+'" data-chg="race-count" aria-label="Anzahl Strecken">'+
+    '<button type="button" class="iconbtn" data-act="race-count" data-v="1" aria-label="Eine Strecke mehr">'+ico(IC.plus,18,2.6)+'</button></span></div>'+
+    '<div class="calsort" id="calsort">'+S.races.map(function(R,i){
+    return '<div class="srow calrow" data-r="'+esc(R.id)+'"><span class="grip" aria-label="Ziehen zum Verschieben">'+ico('<circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/>',18,2)+'</span>'+
+      '<span class="calno num">'+(i+1)+'</span>'+
+      '<input class="inp fl" id="rflag-'+esc(R.id)+'" data-inp="rflag" data-r="'+esc(R.id)+'" value="'+esc(R.flag)+'" aria-label="Flagge">'+
       '<input class="inp grow" id="rname-'+esc(R.id)+'" data-inp="rname" data-r="'+esc(R.id)+'" value="'+esc(R.name)+'" aria-label="Streckenname">'+
       '<button type="button" class="switch" role="switch" data-act="race-sprint" data-r="'+esc(R.id)+'" aria-checked="'+(!!S.sprints[R.id])+'" aria-label="Sprint in '+esc(R.name)+'" title="Sprint"></button>'+
-      '<button type="button" class="iconbtn" style="width:36px" data-act="race-move" data-r="'+esc(R.id)+'" data-v="-1" aria-label="Nach oben"'+(i===0 ? ' disabled' : '')+'>'+ico(IC.up,16,2.4)+'</button>'+
       '<button type="button" class="iconbtn" style="width:36px" data-act="race-del" data-r="'+esc(R.id)+'" aria-label="Rennen löschen">'+ico(IC.trash,16)+'</button></div>';
-  }).join("")+'<button type="button" class="btn wide" data-act="race-add" style="margin-top:8px">'+ico(IC.plus,18)+' Rennen hinzufügen</button>'+
-    '<p class="small muted" style="margin:8px 0 0">Der Schalter rechts neben dem Namen aktiviert Sprint-Quali und Sprint für dieses Wochenende.</p></div>');
+  }).join("")+'</div>'+
+    '<p class="small muted" style="margin:8px 0 0">Zum Verschieben eine Strecke lange gedrückt halten (oder am Griff links ziehen) und nach oben oder unten ziehen. Der Schalter aktiviert Sprint-Quali und Sprint.</p></div>');
   h.push('</div>');
   // Daten
   h.push('<div class="stack">'+dataExportBlock()+dataImportBlock(false)+'</div>');
@@ -2086,6 +2129,80 @@ function dataImportBlock(onb){
     '<button type="button" class="btn grow" data-act="imp-file">'+ico(IC.image,18)+' Datei wählen</button></div>'+
     (onb ? '' : '<p class="small muted" style="margin:0">„Als neuen Spielstand“ fügt hinzu, ohne etwas zu löschen. „Alles ersetzen“ übernimmt den Stand vom anderen Gerät komplett.</p>')+'</div>';
 }
+
+/* Anzahl der Strecken: hinten anfügen oder hinten wegnehmen */
+function setRaceCount(n){
+  n=clamp(n||1, 1, 40);
+  if(n===S.races.length) return refresh();
+  if(n>S.races.length){
+    while(S.races.length<n){
+      var nid="r"+(S.nextId++); while(S.res[nid]) nid="r"+(S.nextId++);
+      var def=DEF_RACES[S.races.length] || ["", "Rennen "+(S.races.length+1)];
+      S.races.push({id:nid, flag:S.races.length<DEF_RACES.length ? def[0] : "", name:S.races.length<DEF_RACES.length ? def[1] : "Rennen "+(S.races.length+1)});
+      S.res[nid]=blankSession(); S.sprints[nid]=false;
+    }
+    touch(); refresh(); return;
+  }
+  var cut=S.races.slice(n), withRes=cut.filter(function(R){ return raceDone(R.id); });
+  function doCut(){
+    cut.forEach(function(R){ delete S.res[R.id]; delete S.sprints[R.id]; delete S.power[R.id]; if(ui.race===R.id) ui.race=null; });
+    S.races=S.races.slice(0,n); touch(); refresh();
+  }
+  if(withRes.length) askConfirm({title:"Strecken entfernen?", text:"Die letzten "+cut.length+" Strecken werden entfernt, darunter "+withRes.map(function(R){ return "<b>"+esc(R.name)+"</b>"; }).join(", ")+" mit eingetragenen Ergebnissen.", ok:"Entfernen", danger:true, onOk:doCut});
+  else doCut();
+}
+/* Strecken per langem Drücken und Ziehen sortieren */
+(function(){
+  var drag=null, timer=null, start=null;
+  function rows(){ return [].slice.call(document.querySelectorAll("#calsort .calrow")); }
+  function block(e){ if(drag) e.preventDefault(); }
+  document.addEventListener("touchmove", block, {passive:false});
+  function begin(row, y){
+    var rs=rows(), h=row.getBoundingClientRect().height+0;
+    drag={row:row, rows:rs, from:rs.indexOf(row), to:rs.indexOf(row), y0:y, h:h};
+    row.classList.add("dragging");
+    document.getElementById("calsort").classList.add("sorting");
+    try{ navigator.vibrate && navigator.vibrate(15); }catch(e){}
+  }
+  function move(y){
+    var dy=y-drag.y0, n=drag.rows.length;
+    drag.row.style.transform="translateY("+dy+"px)";
+    var to=clamp(drag.from+Math.round(dy/drag.h), 0, n-1);
+    drag.to=to;
+    drag.rows.forEach(function(r,i){
+      if(r===drag.row) return;
+      var sh=0;
+      if(to>drag.from && i>drag.from && i<=to) sh=-drag.h;
+      if(to<drag.from && i<drag.from && i>=to) sh=drag.h;
+      r.style.transform= sh ? "translateY("+sh+"px)" : "";
+    });
+  }
+  function end(){
+    if(!drag) return;
+    var d=drag; drag=null;
+    document.getElementById("calsort").classList.remove("sorting");
+    if(d.to!==d.from){
+      var R=S.races.splice(d.from,1)[0]; S.races.splice(d.to,0,R);
+      touch(); refresh(); toast(R.name+" ist jetzt Rennen "+(d.to+1));
+    } else { d.rows.forEach(function(r){ r.style.transform=""; }); d.row.classList.remove("dragging"); }
+  }
+  document.addEventListener("pointerdown", function(e){
+    var row=e.target.closest && e.target.closest("#calsort .calrow");
+    if(!row) return;
+    start={x:e.clientX, y:e.clientY, row:row};
+    if(e.target.closest(".grip")){ e.preventDefault(); begin(row, e.clientY); return; }
+    if(e.target.closest("input,button")) { clearTimeout(timer); timer=setTimeout(function(){ if(start && start.row===row){ document.activeElement && document.activeElement.blur && document.activeElement.blur(); begin(row, start.y); } }, 450); return; }
+    clearTimeout(timer); timer=setTimeout(function(){ if(start && start.row===row) begin(row, start.y); }, 380);
+  });
+  document.addEventListener("pointermove", function(e){
+    if(drag){ move(e.clientY); return; }
+    if(start && Math.hypot(e.clientX-start.x, e.clientY-start.y)>8){ clearTimeout(timer); start=null; }
+  });
+  function up(){ clearTimeout(timer); start=null; end(); }
+  document.addEventListener("pointerup", up);
+  document.addEventListener("pointercancel", function(){ clearTimeout(timer); start=null; if(drag) end(); });
+  document.addEventListener("contextmenu", function(e){ if(e.target.closest && e.target.closest("#calsort")) e.preventDefault(); });
+})();
 
 /* ================= Sheets ================= */
 var SH=null;
@@ -2194,7 +2311,7 @@ function sheetEntry(){
   if(k==="r" || k==="s"){
     var flk = k==="r" ? "flr" : "fls", cur=R[flk];
     h.push('<div class="field"><label for="e-fl">'+ico(IC.bolt,13,2.4)+' Schnellste Runde'+(cfg().fl ? ' (+1 in den Top 10)' : '')+'</label><select class="inp" id="e-fl" data-chg="e-fl">'+
-      '<option value="">– keine –</option>'+S.drivers.map(function(dv,d){ return '<option value="'+d+'"'+(cur===d ? ' selected' : '')+'>'+esc(dv.name)+(isNum(st.arr[d]) ? ' (P'+st.arr[d]+')' : '')+'</option>'; }).join("")+'</select></div>');
+      '<option value="">– keine –</option>'+S.drivers.slice(0,ND).map(function(dv,d){ return '<option value="'+d+'"'+(cur===d ? ' selected' : '')+'>'+esc(dv.name)+(isNum(st.arr[d]) ? ' (P'+st.arr[d]+')' : '')+'</option>'; }).join("")+'</select></div>');
   }
   return {title:"Eintragen", body:h.join(""),
     foot:'<button type="button" class="btn danger" data-act="e-clearsess">'+esc(SESSSHORT[k])+' leeren</button><button type="button" class="btn pri" data-act="e-done">Fertig</button>'};
@@ -2202,9 +2319,10 @@ function sheetEntry(){
 function focusEntry(i){
   var el=document.querySelector('#sheet-body .einp[data-idx="'+i+'"]');
   if(!el){ var a=document.activeElement; if(a && a.blur) a.blur(); return; }
-  el.focus();
-  try{ el.select(); }catch(e){}
-  try{ el.scrollIntoView({block:"center", behavior:"smooth"}); }catch(e){ el.scrollIntoView(); }
+  el.focus({preventScroll:true});
+  if(el.value){ try{ el.select(); }catch(e){} }
+  var body=$("sheet-body"), r=el.getBoundingClientRect(), br=body.getBoundingClientRect();
+  if(r.bottom>br.bottom-60 || r.top<br.top+10) body.scrollTop+=r.top-br.top-br.height*0.35;
 }
 function focusFirstEmpty(){
   var els=document.querySelectorAll("#sheet-body .einp");
@@ -2245,10 +2363,11 @@ function entryPaint(el, d){
   row.classList.remove("live");
 }
 var entryTyped=0;
+var COARSE=false; try{ COARSE=window.matchMedia("(pointer: coarse)").matches; }catch(e){}
 document.addEventListener("focusin", function(e){
   var el=e.target; if(!el.classList || !el.classList.contains("einp")) return;
   entryTyped=el.value.length;
-  try{ el.select(); }catch(x){}
+  if(el.value) requestAnimationFrame(function(){ try{ if(document.activeElement===el) el.select(); }catch(x){} });
 });
 document.addEventListener("input", function(e){
   var el=e.target; if(!el.classList || !el.classList.contains("einp") || !SH || SH.type!=="entry") return;
@@ -2259,7 +2378,7 @@ document.addEventListener("input", function(e){
   row.classList.toggle("live", m>=0);
   var full = m>=0 ? dname(m) : "";
   // Ergänzen direkt im Feld, wenn der Name so anfängt (nicht während die Tastatur noch ein Wort zusammensetzt)
-  if(m>=0 && !e.isComposing && v.length>entryTyped && full.toLowerCase().indexOf(v.toLowerCase())===0 && full.length>v.length){
+  if(m>=0 && !COARSE && !e.isComposing && v.length>entryTyped && full.toLowerCase().indexOf(v.toLowerCase())===0 && full.length>v.length){
     el.value=full;
     try{ el.setSelectionRange(v.length, full.length); }catch(x){}
     if(hint) hint.textContent="";
@@ -2564,7 +2683,7 @@ document.addEventListener("click", function(e){
       var nsv={id:uid("g"), name:nm, seasons:[first], cur:first.id};
       APP.saves.push(nsv); APP.curSave=nsv.id; ui.race=null; ui.hidden={}; flush(); closeSheet(); ui.view="set"; saveUi(); render(true); toast("Spielstand angelegt"); break; }
     case "new-season": {
-      var base=S, ns=freshSeason("Saison "+(SV.seasons.length+1), base.drivers, base.teams, base.dTeam, base.races, base.sprints, base.mode);
+      var base=S, ns=freshSeason("Saison "+(SV.seasons.length+1), base.drivers, base.teams, base.dTeam, base.races, base.sprints, base.mode, base.nd);
       SV.seasons.push(ns); SV.cur=ns.id; ui.race=null; ui.hidden={}; touch(); if(SH) closeSheet(); ui.view="set"; saveUi(); render(true);
       toast("Neue Saison angelegt – Fahrerwechsel hier eintragen"); break; }
     case "confirm-ok": { var o=SH.o; closeSheet(); o.onOk(); break; }
@@ -2585,6 +2704,7 @@ document.addEventListener("click", function(e){
     case "pw-del": delete S.power[SH.race]; touch(); closeSheet(); toast("Autostärke gelöscht"); refresh(); break;
     /* Einstellungen */
     case "mode": S.mode=v; touch(); refresh(); break;
+    case "nd": S.nd=normNd(v); setS(S); simCache.key=null; touch(); refresh(); toast(v+" Fahrer im Feld"); break;
     case "theme": switchTheme(v, el); break;
     case "theme-toggle": switchTheme(isDark() ? "light" : "dark", el); break;
     case "motion": APP.prefs.motion=!APP.prefs.motion; touch(); refresh(); break;
@@ -2604,6 +2724,7 @@ document.addEventListener("click", function(e){
       touch(); refresh(); break; }
     case "race-sprint": { var rid=el.getAttribute("data-r"); S.sprints[rid]=!S.sprints[rid]; el.setAttribute("aria-checked", S.sprints[rid]); touch(); break; }
     case "race-move": { var ri=raceIndex(el.getAttribute("data-r")), to=ri+(+v); if(to>=0 && to<S.races.length){ var tmp=S.races[ri]; S.races[ri]=S.races[to]; S.races[to]=tmp; touch(); refresh(); } break; }
+    case "race-count": setRaceCount(S.races.length+(+v)); break;
     case "race-add": { var nid="r"+(S.nextId++); while(S.res[nid]) nid="r"+(S.nextId++); S.races.push({id:nid, flag:"", name:"Rennen "+(S.races.length+1)}); S.res[nid]=blankSession(); S.sprints[nid]=false; touch(); refresh(); break; }
     case "race-del": {
       var did=el.getAttribute("data-r"), dR=S.races[raceIndex(did)];
@@ -2673,6 +2794,7 @@ document.addEventListener("change", function(e){
   if(!k) return;
   var v=el.value;
   switch(k){
+    case "race-count": setRaceCount(parseInt(v,10)); break;
     case "dteam": S.dTeam[+el.getAttribute("data-d")]=+v; touch(); refresh(); break;
     case "tcolor": S.teams[+el.getAttribute("data-k")].color=hexc(v, "#888888"); touch(); refresh(); break;
     case "e-fl": { var fk=SH.sess==="r" ? "flr" : "fls"; S.res[ui.race][fk]= v==="" ? null : +v; touch(); break; }
