@@ -194,9 +194,9 @@ button.li:hover{background:var(--card-2)}
 .tip div{display:flex;justify-content:space-between;gap:10px}
 
 /* Raster */
-.gridwrap{overflow:auto;max-height:70vh;border-radius:var(--r)}
+.gridwrap{overflow-x:auto;border-radius:var(--r)}
 table.mx{border-collapse:separate;border-spacing:0;font-size:13px}
-table.mx th,table.mx td{padding:0;height:38px;text-align:center;border-bottom:1px solid var(--line);background:var(--card)}
+table.mx th,table.mx td{padding:0;height:36px;text-align:center;border-bottom:1px solid var(--line);background:var(--card)}
 table.mx thead th{position:sticky;top:0;z-index:2;background:var(--card-2);font:700 13px var(--display);letter-spacing:.03em;padding:0 4px;min-width:40px}
 table.mx .stk{position:sticky;left:0;z-index:3;background:var(--card);text-align:left;padding:0 10px;min-width:150px;max-width:150px;border-right:1px solid var(--line-2)}
 table.mx thead .stk{z-index:4;background:var(--card-2)}
@@ -381,6 +381,38 @@ html.nomo *, html.nomo *::before, html.nomo *::after{animation:none!important;tr
 .keyrow{display:flex;gap:8px;align-items:center}
 .keyrow .inp{font-family:var(--mono);font-size:14px}
 .okline{display:flex;align-items:center;gap:8px;color:var(--green);font-weight:700;font-size:14px}
+
+/* Eintragen per Tastatur */
+.elist{display:flex;flex-direction:column}
+.erow{display:grid;grid-template-columns:40px 32px minmax(0,1fr);align-items:center;gap:8px;padding:3px 0;border-top:1px solid var(--line);position:relative}
+.erow:first-child{border-top:0}
+.erow .p{font:800 17px var(--display);color:var(--ink-3)}
+.erow.sc .p{color:var(--green)}
+.erow.dnf .p,.erow.add .p{color:var(--red);font-size:14px}
+.erow .elogo{display:flex;align-items:center;justify-content:center;width:32px;height:32px}
+.erow .elogo .dash{width:28px;height:28px}
+.einp{width:100%;min-height:42px;border:1px solid transparent;border-radius:10px;background:transparent;padding:6px 10px;font-size:16px;font-weight:600;color:var(--ink);transition:background .2s,border-color .2s}
+.einp::placeholder{color:var(--ink-3);font-weight:500}
+.einp:focus{outline:none;background:var(--card-2);border-color:var(--accent)}
+.erow.live .elogo{animation:introPop .35s cubic-bezier(.2,1.4,.4,1)}
+.ehint{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--accent);font-weight:700;pointer-events:none;white-space:nowrap;max-width:55%;overflow:hidden;text-overflow:ellipsis}
+
+/* Teamvergleich */
+.duelgrid{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:860px){.duelgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.duelgrid > .h2{grid-column:1 / -1}}
+.duelnames{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
+.duelnames span{display:flex;align-items:center;gap:8px;min-width:0;font-size:15px}
+.duelnames b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.duelnames .r{justify-content:flex-end;text-align:right}
+.duel{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:10px;min-height:36px}
+.duel .dv{font:800 18px var(--display);color:var(--ink-2)}
+.duel .dv.r{text-align:right}
+.duel .dv.win{color:var(--ink)}
+.duel .dmid{display:flex;flex-direction:column;gap:4px;min-width:0}
+.duel .dl{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;text-align:center}
+.duel .dbar{display:flex;height:7px;border-radius:4px;overflow:hidden;gap:2px;background:var(--line)}
+.duel .dbar i{display:block;height:100%;transform-origin:left;animation:grow .8s cubic-bezier(.2,.8,.2,1) both}
+.still .duel .dbar i{animation:none}
 </style>
 <div class="app">
   <header class="top" id="top">
@@ -415,7 +447,6 @@ html.nomo *, html.nomo *::before, html.nomo *::after{animation:none!important;tr
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <canvas id="confetti" aria-hidden="true"></canvas>
 <input type="file" id="file-json" accept=".json,.txt,application/json,text/plain" hidden>
-<input type="file" id="file-img" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
 <input type="file" id="file-cam" accept="image/*" capture="environment" hidden>
 <input type="file" id="file-logo" accept="image/*" hidden>
 <script>
@@ -638,18 +669,7 @@ function normApp(x){
 /* ================= Zustand ================= */
 var APP = normApp(null), SV = null, S = null;
 var ui = {view:"standings", wMode:"d", race:null, sess:"r", statKey:"pts", statScope:"season", hidden:{}, entryOpen:false};
-var CAP = {sample:false, maxImgs:1, checked:false};
 var N = window.F1N || null, NATIVE = !!(N && N.native);
-var KEY_API = "f1m-apikey", apiKeyCache = null;
-function getApiKey(){ if(apiKeyCache===null){ try{ apiKeyCache=localStorage.getItem(KEY_API)||""; }catch(e){ apiKeyCache=""; } } return apiKeyCache; }
-function setApiKey(v){
-  apiKeyCache=v||"";
-  try{ if(v) localStorage.setItem(KEY_API, v); else localStorage.removeItem(KEY_API); }catch(e){}
-  if(NATIVE){ (v ? N.Preferences.set({key:KEY_API, value:v}) : N.Preferences.remove({key:KEY_API})).catch(function(){}); }
-}
-function apiReady(){ return !!(N && N.Anthropic && getApiKey()); }
-function photoReady(){ return CAP.sample || apiReady(); }
-function photoMax(){ return CAP.sample ? (CAP.maxImgs||1) : 4; }
 
 function findSave(id){ for(var i=0;i<APP.saves.length;i++) if(APP.saves[i].id===id) return APP.saves[i]; return null; }
 function findSeason(sv, id){ for(var i=0;i<sv.seasons.length;i++) if(sv.seasons[i].id===id) return sv.seasons[i]; return null; }
@@ -1332,7 +1352,7 @@ function loadUi(){
     var x=JSON.parse(localStorage.getItem("f1m-ui")||"null");
     if(x){
       VIEWS.forEach(function(v){ if(v.k===x.view) ui.view=x.view; });
-      if(["d","t","g"].indexOf(x.wMode)>=0) ui.wMode=x.wMode;
+      if(["d","t","v","g"].indexOf(x.wMode)>=0) ui.wMode=x.wMode;
       if(typeof x.statKey==="string") ui.statKey=x.statKey;
       if(x.statScope==="all") ui.statScope="all";
     }
@@ -1356,8 +1376,9 @@ function vOnboarding(){
 /* ---------- Wertung ---------- */
 function vStandings(){
   var st=standings(), h=[];
-  h.push('<div class="seg st" style="--i:0" role="group" aria-label="Ansicht">'+segBtns("wmode", ui.wMode, [["d","Fahrer"],["t","Teams"],["g","Raster"]])+'</div>');
+  h.push('<div class="seg st" style="--i:0" role="group" aria-label="Ansicht">'+segBtns("wmode", ui.wMode, [["d","Fahrer"],["t","Teams"],["v","Duelle"],["g","Raster"]])+'</div>');
   if(ui.wMode==="g"){ h.push(matrixCard(st)); return h.join(""); }
+  if(ui.wMode==="v"){ h.push('<div class="duelgrid">'+teamCompareCards(1)+'</div>'); return h.join(""); }
   if(ui.wMode==="t"){
     h.push('<div class="cols"><div class="stack">'+teamListCard()+'</div><div class="stack">'+pointsChartCard("t")+'</div></div>');
     return h.join("");
@@ -1562,19 +1583,14 @@ function powerCard(id, ri){
 }
 function entryCard(id){
   var R=S.res[id], open=ui.entryOpen;
-  var photoBtn = photoReady() ?
-    '<button type="button" class="bigact photo" data-act="photo-open" data-kind="'+ui.sess+'"><span class="ic">'+ico(IC.camera,24)+'</span><span><span class="tt">Ergebnis-Foto auslesen</span><br><span class="ds">Claude liest die Plätze vom Bildschirm ab</span></span></button>' :
-    '<button type="button" class="bigact hand" data-act="nav" data-v="set"><span class="ic">'+ico(IC.camera,24)+'</span><span><span class="tt">Foto auslesen einrichten</span><br><span class="ds">'+photoHint()+'</span></span></button>';
   return '<div class="card st" style="--i:4">'+
     '<button type="button" class="collapse" data-act="entry-toggle" aria-expanded="'+open+'">'+
       '<span class="logo" style="--s:40px;border-radius:12px;background:var(--accent-soft);color:var(--accent)">'+ico(IC.pen,20)+'</span>'+
-      '<span><span class="h2" style="display:block">Ergebnisse eintragen</span><span class="small muted">Foto, von Hand, Autostärke, Notizen</span></span>'+
+      '<span><span class="h2" style="display:block">Ergebnisse eintragen</span><span class="small muted">Plätze, Autostärke, Notizen</span></span>'+
       '<span class="chev">'+ico(IC.chev,20,2.4)+'</span></button>'+
     '<div class="reveal'+(open ? ' open' : '')+'"><div><div class="reveal-inner">'+
-      photoBtn+
-      '<button type="button" class="bigact hand" data-act="entry-open"><span class="ic">'+ico(IC.pen,22)+'</span><span><span class="tt">Von Hand eintragen</span><br><span class="ds">Platz antippen, Fahrer wählen, weiter geht’s automatisch</span></span></button>'+
-      '<div class="row">'+(photoReady() ? '<button type="button" class="btn grow" data-act="photo-open" data-kind="power">'+ico(IC.camera,18)+' R&D-Foto</button>' : '')+
-        '<button type="button" class="btn grow" data-act="power-hand">'+ico(IC.gauge,18)+' Autostärke von Hand</button></div>'+
+      '<button type="button" class="bigact photo" data-act="entry-open"><span class="ic">'+ico(IC.pen,22)+'</span><span><span class="tt">'+esc(SESSLBL[ui.sess])+' eintragen</span><br><span class="ds">Erste Buchstaben tippen, auf Weiter \u2013 fertig</span></span></button>'+
+      '<button type="button" class="btn" data-act="power-hand">'+ico(IC.gauge,18)+' Autostärke vor diesem GP</button>'+
       '<div class="field"><label for="notes-'+esc(id)+'">Notizen zum Wochenende</label><textarea class="notes" id="notes-'+esc(id)+'" data-inp="notes" placeholder="z. B. Safety-Car, Strafen, Wetter">'+esc(R.notes||"")+'</textarea></div>'+
       '<button type="button" class="btn danger sm" data-act="race-clear" style="align-self:flex-start">Dieses Wochenende leeren</button>'+
     '</div></div></div></div>';
@@ -1711,7 +1727,7 @@ function vPred(){
     '<div class="lbl2" style="margin:14px 0 4px">Bisherige Form ↔ Autostärke</div>'+
     '<input type="range" class="range" id="predw" min="0" max="100" step="5" value="'+Math.round(APP.prefs.predW*100)+'" data-inp="predw" aria-label="Gewichtung Autostärke"'+(mdl.car ? '' : ' disabled')+'>'+
     '<div class="row small muted" style="justify-content:space-between"><span>Form '+(100-Math.round(APP.prefs.predW*100))+' %</span><span id="predw-l">Auto '+Math.round(APP.prefs.predW*100)+' %</span></div>'+
-    '<p class="small muted" style="margin:8px 0 0">'+(mdl.car ? 'Autostärke vom GP '+esc(mdl.car.race.name)+'. ' : 'Noch keine Autostärke eingetragen: Im Tab Teams kannst du ein R&D-Foto auslesen lassen. ')+
+    '<p class="small muted" style="margin:8px 0 0">'+(mdl.car ? 'Autostärke vom GP '+esc(mdl.car.race.name)+'. ' : 'Noch keine Autostärke eingetragen: Im Tab Teams kannst du sie vor jedem GP eintragen. ')+
       (mdl.prior.length ? 'Die aktuelle Saison zählt zu '+Math.round(mdl.w*100)+' %, die gewählten Vorsaisons zu '+(100-Math.round(mdl.w*100))+' % – mit jedem Rennen verschiebt sich das zur aktuellen Saison.' :
         'Es zählt nur die aktuelle Saison.')+' Hochgerechnet aus '+SIM_N.toLocaleString("de-DE")+' simulierten Saisonverläufen.</p></div>';
   var ranked=st.map(function(r){ return r.d; }).filter(function(d){ return prob[d]>=0.0005; }).sort(function(a,b){ return prob[b]-prob[a]; }).slice(0,10);
@@ -1736,15 +1752,69 @@ function vPred(){
   return h.join("");
 }
 
+/* ---------- Teamvergleich ---------- */
+function h2h(a, b, k){
+  var wa=0, wb=0;
+  S.races.forEach(function(R){
+    var x=S.res[R.id][k][a], y=S.res[R.id][k][b], xn=isNum(x), yn=isNum(y);
+    if(xn && yn){ if(x<y) wa++; else if(y<x) wb++; }
+    else if(xn && y===DNF) wa++;
+    else if(yn && x===DNF) wb++;
+  });
+  return [wa, wb];
+}
+function shortName(d){
+  var n=String(dname(d)).trim();
+  if(n.length<=13) return n;
+  var p=n.split(/\s+/); return p[p.length-1];
+}
+function duelRow(label, va, vb, color, opt){
+  opt=opt||{};
+  var na=va==null ? null : +va, nb=vb==null ? null : +vb, fa=0.5;
+  if(na!=null && nb!=null){
+    if(opt.low) fa=(na+nb)>0 ? nb/(na+nb) : 0.5;
+    else fa=(na+nb)>0 ? na/(na+nb) : 0.5;
+  }
+  var aWin = na!=null && nb!=null && (opt.low ? na<nb : na>nb), bWin = na!=null && nb!=null && (opt.low ? nb<na : nb>na);
+  function show(v){ return v==null ? "\u2013" : (opt.dec ? fmt1(v) : String(v)); }
+  return '<div class="duel"><span class="dv'+(aWin ? ' win' : '')+'">'+show(na)+'</span>'+
+    '<span class="dmid"><span class="dl">'+esc(label)+'</span><span class="dbar"><i style="width:'+(fa*100).toFixed(1)+'%;background:'+color+'"></i><i style="flex:1;background:'+color+';opacity:.28"></i></span></span>'+
+    '<span class="dv r'+(bWin ? ' win' : '')+'">'+show(nb)+'</span></div>';
+}
+function teamCompareCards(n0){
+  var st=standings(), rank={}, ds=dStats(S), h=[];
+  st.forEach(function(r,i){ rank[r.d]=i; });
+  teamStandings().forEach(function(r, pos){
+    var t=S.teams[r.t], drv=r.drivers.slice().sort(function(a,b){ return rank[a]-rank[b]; });
+    var head='<div class="row" style="flex-wrap:nowrap;gap:12px;margin-bottom:10px">'+logoHtml(t,44)+
+      '<div style="min-width:0;flex:1"><div style="font:800 19px/1.1 var(--display);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.name)+'</div>'+
+      '<div class="small muted">'+(pos+1)+'. der Teamwertung \u00B7 '+r.pts+' Pkt</div></div></div>';
+    if(drv.length<2){
+      h.push('<div class="card st" style="--i:'+(n0+pos)+'">'+head+'<p class="small muted" style="margin:0">Nur ein Fahrer in diesem Team.</p></div>');
+      return;
+    }
+    var a=drv[0], b=drv[1], A=ds[a], B=ds[b], q=h2h(a,b,"q"), rr=h2h(a,b,"r");
+    var body='<div class="duelnames"><span>'+dLogo(a,26)+'<b>'+esc(shortName(a))+'</b></span><span class="r"><b>'+esc(shortName(b))+'</b>'+dLogo(b,26)+'</span></div>'+
+      duelRow("Punkte", A.pts, B.pts, t.color)+
+      duelRow("Quali-Duell", q[0], q[1], t.color)+
+      duelRow("Rennduell", rr[0], rr[1], t.color)+
+      duelRow("Siege", A.wins, B.wins, t.color)+
+      duelRow("Podien", A.pods, B.pods, t.color)+
+      duelRow("Ø Startplatz", A.avgS, B.avgS, t.color, {low:true, dec:true})+
+      duelRow("Ø Zielplatz", A.avgF, B.avgF, t.color, {low:true, dec:true})+
+      duelRow("Ausfälle", A.dnf, B.dnf, t.color, {low:true});
+    if(drv.length>2) body+='<p class="small muted" style="margin:8px 0 0">Außerdem im Team: '+drv.slice(2).map(function(d){ return esc(dname(d)); }).join(", ")+'</p>';
+    h.push('<div class="card st duelcard" style="--i:'+(n0+pos)+'">'+head+body+'</div>');
+  });
+  return '<div class="h2 st" style="--i:'+n0+';margin-top:4px">Teamvergleich</div>'+h.join("");
+}
+
 /* ---------- Teams ---------- */
 function powerTarget(){ var i=nextRaceIdx(); if(i<0) i=S.races.length-1; return i>=0 ? S.races[i].id : null; }
 function vTeams(){
   var h=[], tgt=powerTarget(), tR=tgt ? S.races[raceIndex(tgt)] : null;
-  if(photoReady() && tR) h.push('<button type="button" class="cta st" style="--i:0" data-act="photo-open" data-kind="power" data-r="'+esc(tgt)+'"><span class="ic">'+ico(IC.camera,26)+'</span>'+
-    '<span><span class="tt">R&D-Chart fotografieren</span><br><span class="ds">Claude liest die Teamstärken aus, du prüfst und übernimmst sie · für GP '+esc(tR.name)+'</span></span></button>');
-  else if(tR) h.push('<div class="card st" style="--i:0;display:flex;gap:12px;align-items:center"><span class="logo" style="--s:44px;border-radius:13px;background:var(--accent-soft);color:var(--accent)">'+ico(IC.camera,22)+'</span>'+
-    '<span class="small muted" style="flex:1">'+photoHint()+' Von Hand geht es immer.</span><button type="button" class="btn sm" data-act="nav" data-v="set">Einrichten</button></div>');
-  if(tR) h.push('<button type="button" class="btn st" style="--i:1" data-act="power-hand" data-r="'+esc(tgt)+'">'+ico(IC.gauge,18)+' Autostärke von Hand eintragen</button>');
+  if(tR) h.push('<button type="button" class="cta st" style="--i:0" data-act="power-hand" data-r="'+esc(tgt)+'"><span class="ic">'+ico(IC.gauge,26)+'</span>'+
+    '<span><span class="tt">Autostärke eintragen</span><br><span class="ds">Wie im R&D-Vergleich im Spiel \u00B7 vor dem GP '+esc(tR.name)+'</span></span></button>');
   var ts=teamStandings(), lead=ts[0] ? Math.max(1,ts[0].pts) : 1;
   var stand='<div class="card flush st" style="--i:2"><div class="chead"><h2>Teamwertung</h2><span class="hint">'+esc(S.name)+'</span></div><div class="list">'+ts.map(function(r,i){
     var t=S.teams[r.t];
@@ -1781,7 +1851,7 @@ function vTeams(){
       return '<li><span class="xi" style="background:var(--red-soft);color:var(--red)">−</span><span><b>'+esc(x.name)+'</b> verlässt das Feld (zuletzt '+esc(x.from)+')</span></li>';
     }).join("")+'</ul>' : '<p class="small muted" style="margin:0">Keine Wechsel – alle Fahrer bleiben in ihren Teams.</p>')+'</div>';
   }
-  h.push('<div class="cols"><div class="stack">'+stand+'</div><div class="stack">'+dev+xfer+'</div></div>');
+  h.push('<div class="cols"><div class="stack">'+stand+teamCompareCards(4)+'</div><div class="stack">'+dev+xfer+'</div></div>');
   return h.join("");
 }
 
@@ -1828,7 +1898,6 @@ function vSettings(){
   // Daten
   h.push('<div class="stack">'+dataExportBlock()+dataImportBlock(false)+'</div>');
   h.push('<div class="stack">');
-  h.push(photoSettingsCard());
   h.push('<div class="card st" style="--i:6;display:flex;flex-direction:column;gap:12px">'+cardHead("Darstellung")+
     '<div class="field"><span class="lbl2">Farbschema</span><div class="seg" role="group" aria-label="Farbschema">'+segBtns("theme", APP.prefs.theme, [["system","Automatisch"],["dark","Dunkel"],["light","Hell"]])+'</div></div>'+
     '<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><span><b>Animationen</b><br><span class="small muted">Übergänge, Balken, Konfetti</span></span>'+
@@ -1839,24 +1908,6 @@ function vSettings(){
     '<button type="button" class="btn danger grow" data-act="del-save">Spielstand löschen</button></div></div>');
   h.push('</div></div>');
   return h.join("");
-}
-function photoSettingsCard(){
-  var h='<div class="card st" style="--i:6;display:flex;flex-direction:column;gap:10px">'+cardHead("Foto-Auslesen mit Claude");
-  if(CAP.sample){
-    return h+'<div class="okline">'+ico(IC.check,18,2.6)+' Bereit</div><p class="small muted" style="margin:0">Läuft über dein Claude-Konto auf claude.ai. Du brauchst keinen eigenen Schlüssel.</p></div>';
-  }
-  if(!(N && N.Anthropic)){
-    return h+'<p class="small muted" style="margin:0">'+photoHint()+'</p></div>';
-  }
-  var has=!!getApiKey();
-  h+='<p class="small muted" style="margin:0">Damit die App Ergebnis- und R&D-Fotos lesen kann, braucht sie einen eigenen Claude-API-Schlüssel. Den bekommst du auf console.anthropic.com unter „API Keys“. '+
-    'Jedes Foto kostet ein paar Cent und wird über diesen Schlüssel abgerechnet. Der Schlüssel bleibt nur auf diesem Gerät und ist nicht in Sicherungen enthalten.</p>';
-  if(has) h+='<div class="okline">'+ico(IC.check,18,2.6)+' Schlüssel hinterlegt (endet auf '+esc(getApiKey().slice(-4))+')</div>';
-  h+='<div class="field"><label for="api-key">'+(has ? 'Neuen Schlüssel eintragen' : 'API-Schlüssel')+'</label><div class="keyrow">'+
-    '<input class="inp" id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" aria-label="Claude-API-Schlüssel">'+
-    '<button type="button" class="btn pri" data-act="api-save">Speichern</button></div></div>';
-  if(has) h+='<button type="button" class="btn danger sm" data-act="api-del" style="align-self:flex-start">Schlüssel entfernen</button>';
-  return h+'</div>';
 }
 function dataExportBlock(){
   return '<div class="card st" style="--i:4;display:flex;flex-direction:column;gap:10px">'+cardHead("Daten & Sync", lastSaved ? "gespeichert "+stamp(lastSaved) : "")+
@@ -1891,7 +1942,7 @@ function renderSheet(){
   else if(SH.type==="saves") r=sheetSaves();
   else if(SH.type==="newsave") r=sheetNewSave();
   else if(SH.type==="entry") r=sheetEntry();
-  else if(SH.type==="photo") r=sheetPhoto();
+  else if(SH.type==="logo") r=sheetLogo();
   else if(SH.type==="power") r=sheetPower();
   else if(SH.type==="confirm") r=sheetConfirm();
   else r={title:"", body:""};
@@ -1942,50 +1993,134 @@ function sheetNewSave(){
     foot:'<button type="button" class="btn" data-act="sheet-close">Abbrechen</button><button type="button" class="btn pri" data-act="ns-ok">Anlegen</button>'};
 }
 
-/* Von Hand eintragen */
-function openEntry(sess){ SH={type:"entry", sess:sess||ui.sess, cur:null, mode:"slots"}; showSheet(); }
+/* Eintragen wie in der alten App: Anfangsbuchstaben oder Startnummer tippen, "Weiter" – fertig */
+function openEntry(sess){
+  SH={type:"entry", sess:sess||ui.sess};
+  showSheet();
+  setTimeout(function(){ if(SH && SH.type==="entry") focusFirstEmpty(); }, 420);
+}
+function entryState(k){
+  var arr=S.res[ui.race][k], dnfs=[], maxNum=0, d;
+  for(d=0; d<ND; d++){ if(arr[d]===DNF) dnfs.push(d); else if(isNum(arr[d]) && arr[d]>maxNum) maxNum=arr[d]; }
+  return {arr:arr, dnfs:dnfs, bound:Math.max(ND-dnfs.length, maxNum)};
+}
+function driverAt(arr, p){ for(var d=0; d<ND; d++) if(arr[d]===p) return d; return null; }
+function entryKey(k){ var st=entryState(k); return st.bound+"|"+st.dnfs.join(","); }
 function sheetEntry(){
-  var id=ui.race, R=S.res[id], k=SH.sess, arr=R[k], sess=sessionsOf(id), RR=S.races[raceIndex(id)];
+  var id=ui.race, R=S.res[id], k=SH.sess, sess=sessionsOf(id), RR=S.races[raceIndex(id)], st=entryState(k);
   var lim = k==="r" ? 10 : (k==="s" ? 8 : (k==="q" && cfg().qualy ? 1 : 0));
-  if(SH.mode==="pick" || SH.mode==="dnf"){
-    var title = SH.mode==="dnf" ? "Ausfall wählen" : "P"+SH.cur+" wählen";
-    var order=[], d;
-    for(d=0; d<ND; d++) order.push(d);
-    order.sort(function(a,b){ var ua=arr[a]!=null, ub=arr[b]!=null; if(ua!==ub) return ua ? 1 : -1; return S.dTeam[a]-S.dTeam[b] || a-b; });
-    var body='<div class="row" style="justify-content:space-between"><button type="button" class="btn sm" data-act="e-back">'+ico(IC.left,16,2.4)+' Zurück</button>'+
-      (SH.mode==="pick" && arr.indexOf(SH.cur)>=0 ? '<button type="button" class="btn sm danger" data-act="e-clearslot">Platz leeren</button>' : '')+'</div>'+
-      '<div class="pick">'+order.map(function(d){
-        var v=arr[d], used=v!=null;
-        return '<button type="button" class="pk'+(used ? ' used' : '')+'" data-act="e-pick" data-d="'+d+'">'+dLogo(d,30)+'<span>'+esc(dname(d))+'</span>'+(used ? '<span class="ps">'+(v===DNF ? 'DNF' : 'P'+v)+'</span>' : '')+'</button>';
-      }).join("")+'</div>';
-    return {title:title, body:body};
+  var rows=[], idx=0, p, j;
+  function row(kind, label, d, extra, sc){
+    var t = d!=null ? teamOfD(d) : null;
+    return '<div class="erow'+(sc ? ' sc' : '')+(kind==="add" ? ' add' : '')+(kind==="dnf" ? ' dnf' : '')+'"><span class="p">'+label+'</span>'+
+      '<span class="elogo">'+(t ? logoHtml(t,30) : '<span class="dash"></span>')+'</span>'+
+      '<input class="einp" type="text" data-idx="'+(idx++)+'" data-kind="'+kind+'" '+extra+' value="'+(d!=null ? esc(dname(d)) : '')+'" '+
+      'placeholder="'+(kind==="add" ? '+ Ausfall' : '–')+'" enterkeyhint="next" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" '+
+      'aria-label="'+esc(SESSLBL[k])+' '+(kind==="pos" ? label : 'Ausfall')+'"><span class="ehint" aria-hidden="true"></span></div>';
   }
-  var h=['<div class="small muted">'+esc(raceLabel(RR))+'</div><div class="seg sm" role="group" aria-label="Session">'+segBtns("e-sess", k, sess.map(function(s){ return [s, SESSSHORT[s]]; }))+'</div>',
-    '<p class="small muted" style="margin:0">Tipp auf einen Platz und wähl den Fahrer. Danach springt es automatisch zum nächsten freien Platz.</p><div class="list">'];
-  for(var p=1;p<=ND;p++){
-    var who=-1; for(var d2=0; d2<ND; d2++) if(arr[d2]===p) who=d2;
-    h.push('<button type="button" class="slot'+(p<=lim ? ' sc' : '')+'" data-act="e-slot" data-p="'+p+'"><span class="p">P'+p+'</span>'+
-      (who>=0 ? dLogo(who,30)+'<span class="who">'+esc(dname(who))+'</span>' : '<span class="dash"></span><span class="who free">frei</span>')+'</button>');
-  }
-  h.push('</div>');
-  var dn=[]; for(var d3=0; d3<ND; d3++) if(arr[d3]===DNF) dn.push(d3);
-  h.push('<div class="lbl2">Ausfälle</div><div class="chips" style="flex-wrap:wrap">'+dn.map(function(d){
-    return '<button type="button" class="chip" data-act="e-dnf-rm" data-d="'+d+'" aria-label="'+esc(dname(d))+' wieder entfernen">'+esc(dname(d))+' '+ico(IC.x,14,2.6)+'</button>';
-  }).join("")+'<button type="button" class="chip" data-act="e-dnf-add">'+ico(IC.plus,14,2.6)+' Ausfall</button></div>');
+  for(p=1; p<=st.bound; p++) rows.push(row("pos", "P"+p, driverAt(st.arr,p), 'data-p="'+p+'"', p<=lim));
+  for(j=0; j<st.dnfs.length; j++) rows.push(row("dnf", "DNF", st.dnfs[j], 'data-d="'+st.dnfs[j]+'"', false));
+  if(st.dnfs.length<ND) rows.push(row("add", "DNF", null, '', false));
+  var h=['<div class="small muted">'+esc(raceLabel(RR))+'</div><div class="seg sm" role="group" aria-label="Session">'+segBtns("e-sess", k, sess.map(function(s2){ return [s2, SESSSHORT[s2]]; }))+'</div>',
+    '<p class="small muted" style="margin:0">Tipp die ersten Buchstaben oder die Startnummer und drück auf <b>Weiter</b>. Der Fahrer wird eingetragen und es geht mit dem nächsten Platz weiter.</p>',
+    '<div class="elist">'+rows.join("")+'</div>'];
   if(k==="r" || k==="s"){
     var flk = k==="r" ? "flr" : "fls", cur=R[flk];
     h.push('<div class="field"><label for="e-fl">'+ico(IC.bolt,13,2.4)+' Schnellste Runde'+(cfg().fl ? ' (+1 in den Top 10)' : '')+'</label><select class="inp" id="e-fl" data-chg="e-fl">'+
-      '<option value="">– keine –</option>'+S.drivers.map(function(dv,d){ return '<option value="'+d+'"'+(cur===d ? ' selected' : '')+'>'+esc(dv.name)+(isNum(arr[d]) ? ' (P'+arr[d]+')' : '')+'</option>'; }).join("")+'</select></div>');
+      '<option value="">– keine –</option>'+S.drivers.map(function(dv,d){ return '<option value="'+d+'"'+(cur===d ? ' selected' : '')+'>'+esc(dv.name)+(isNum(st.arr[d]) ? ' (P'+st.arr[d]+')' : '')+'</option>'; }).join("")+'</select></div>');
   }
   return {title:"Eintragen", body:h.join(""),
     foot:'<button type="button" class="btn danger" data-act="e-clearsess">'+esc(SESSSHORT[k])+' leeren</button><button type="button" class="btn pri" data-act="e-done">Fertig</button>'};
 }
-function nextFree(arr, from){
-  for(var p=from;p<=ND;p++){ if(arr.indexOf(p)<0) return p; }
-  for(p=1;p<from;p++){ if(arr.indexOf(p)<0) return p; }
-  return null;
+function focusEntry(i){
+  var el=document.querySelector('#sheet-body .einp[data-idx="'+i+'"]');
+  if(!el){ var a=document.activeElement; if(a && a.blur) a.blur(); return; }
+  el.focus();
+  try{ el.select(); }catch(e){}
+  try{ el.scrollIntoView({block:"center", behavior:"smooth"}); }catch(e){ el.scrollIntoView(); }
 }
-function filledCount(arr){ return arr.filter(function(v){ return v!=null; }).length; }
+function focusFirstEmpty(){
+  var els=document.querySelectorAll("#sheet-body .einp");
+  for(var i=0;i<els.length;i++) if(!els[i].value){ focusEntry(+els[i].getAttribute("data-idx")); return; }
+}
+/* Schreibt einen Eintrag fest. Gibt zurück, ob sich die Liste (Ausfälle) verändert hat. */
+function entryCommit(el){
+  if(!SH || SH.type!=="entry") return false;
+  var k=SH.sess, arr=S.res[ui.race][k], kind=el.getAttribute("data-kind"), val=el.value;
+  var before=entryKey(k);
+  var m = String(val||"").trim() ? matchDriver(val, arr) : -1;
+  var cur = kind==="pos" ? driverAt(arr, +el.getAttribute("data-p")) : (kind==="dnf" ? +el.getAttribute("data-d") : null);
+  if(m===cur || (m<0 && cur===null)){ entryPaint(el, cur); return false; }
+  if(kind==="pos"){
+    var p=+el.getAttribute("data-p");
+    for(var d=0; d<ND; d++) if(arr[d]===p) arr[d]=null;
+    if(m>=0) arr[m]=p;
+  } else {
+    if(cur!==null && cur!==m) arr[cur]=null;
+    if(m>=0) arr[m]=DNF;
+  }
+  touch();
+  entryPaint(el, m>=0 ? m : null);
+  // Hatte der Fahrer vorher einen anderen Platz, diese Zeile leeren
+  if(m>=0) document.querySelectorAll("#sheet-body .einp").forEach(function(o){
+    if(o===el) return;
+    var ok=o.getAttribute("data-kind"), od = ok==="pos" ? driverAt(arr, +o.getAttribute("data-p")) : (ok==="dnf" ? +o.getAttribute("data-d") : null);
+    if(ok==="dnf" && arr[od]!==DNF) od=null;
+    if(o.value && od===null) entryPaint(o, null);
+  });
+  return entryKey(k)!==before;
+}
+function entryPaint(el, d){
+  el.value = d!=null ? dname(d) : "";
+  var row=el.parentNode, lg=row.querySelector(".elogo"), hint=row.querySelector(".ehint");
+  if(lg) lg.innerHTML = d!=null ? logoHtml(teamOfD(d),30) : '<span class="dash"></span>';
+  if(hint) hint.textContent="";
+  row.classList.remove("live");
+}
+var entryTyped=0;
+document.addEventListener("focusin", function(e){
+  var el=e.target; if(!el.classList || !el.classList.contains("einp")) return;
+  entryTyped=el.value.length;
+  try{ el.select(); }catch(x){}
+});
+document.addEventListener("input", function(e){
+  var el=e.target; if(!el.classList || !el.classList.contains("einp") || !SH || SH.type!=="entry") return;
+  var v=el.value, arr=S.res[ui.race][SH.sess], m=String(v).trim() ? matchDriver(v, arr) : -1;
+  var row=el.parentNode, lg=row.querySelector(".elogo"), hint=row.querySelector(".ehint");
+  // Vorschau: Logo und voller Name des Treffers
+  if(lg) lg.innerHTML = m>=0 ? logoHtml(teamOfD(m),30) : '<span class="dash"></span>';
+  row.classList.toggle("live", m>=0);
+  var full = m>=0 ? dname(m) : "";
+  // Ergänzen direkt im Feld, wenn der Name so anfängt (nicht während die Tastatur noch ein Wort zusammensetzt)
+  if(m>=0 && !e.isComposing && v.length>entryTyped && full.toLowerCase().indexOf(v.toLowerCase())===0 && full.length>v.length){
+    el.value=full;
+    try{ el.setSelectionRange(v.length, full.length); }catch(x){}
+    if(hint) hint.textContent="";
+  } else if(hint) hint.textContent = (m>=0 && full.toLowerCase()!==String(v).trim().toLowerCase()) ? "→ "+full : "";
+  entryTyped=v.length;
+}, true);
+document.addEventListener("keydown", function(e){
+  var el=e.target; if(!el.classList || !el.classList.contains("einp")) return;
+  if(e.key==="Enter" || e.keyCode===13 || (e.key==="Tab" && !e.shiftKey)){
+    e.preventDefault();
+    var i=+el.getAttribute("data-idx"), kind=el.getAttribute("data-kind"), changed=entryCommit(el);
+    if(changed){ SH.keepScroll=true; renderSheet(); }
+    if(kind==="add" && changed){ var ad=document.querySelector('#sheet-body .einp[data-kind="add"]'); if(ad) focusEntry(+ad.getAttribute("data-idx")); }
+    else focusEntry(i+1);
+  } else if(e.key==="Escape"){ e.stopPropagation(); el.blur(); }
+}, true);
+document.addEventListener("focusout", function(e){
+  var el=e.target; if(!el.classList || !el.classList.contains("einp") || !SH || SH.type!=="entry") return;
+  if(entryCommit(el)){
+    // Liste neu aufbauen (z. B. neuer Ausfall), Fokus behalten
+    setTimeout(function(){
+      if(!SH || SH.type!=="entry") return;
+      var a=document.activeElement, ai=(a && a.classList && a.classList.contains("einp")) ? +a.getAttribute("data-idx") : -1;
+      SH.keepScroll=true; renderSheet();
+      if(ai>=0) focusEntry(ai);
+    }, 0);
+  }
+});
 
 /* Autostärke von Hand */
 function openPower(raceId){
@@ -2007,7 +2142,7 @@ function sheetPower(){
       '<button type="button" class="btn pri" data-act="pw-save">Speichern</button>'};
 }
 
-/* ================= Foto auslesen (Claude) ================= */
+/* ================= Fähigkeiten von claude.ai ================= */
 var capP={};
 function getCap(name){
   if(capP[name]) return capP[name];
@@ -2015,260 +2150,82 @@ function getCap(name){
   capP[name] = (c && typeof c.use==="function") ? Promise.resolve().then(function(){ return c.use(name); }).catch(function(){ return null; }) : Promise.resolve(null);
   return capP[name];
 }
-function checkCaps(){
-  getCap("sample").then(function(s){
-    if(!s || typeof s.limits!=="function") return null;
-    return s.limits().catch(function(){ return null; });
-  }).then(function(l){
-    CAP.checked=true;
-    CAP.sample=!!(l && l.images);
-    if(CAP.sample){ CAP.maxImgs=l.images.maxCount||1; if(l.images.mediaTypes && l.images.mediaTypes.length) $("file-img").accept=l.images.mediaTypes.join(","); }
-    if(S && (ui.view==="race" || ui.view==="teams" || ui.view==="set")) refresh();
-  });
-}
-function photoHint(){
-  if(!CAP.checked && !N) return "Wird geprüft …";
-  if(N && N.Anthropic) return "Hinterleg in den Einstellungen deinen Claude-API-Schlüssel, dann liest die App Ergebnis- und R&D-Fotos aus.";
-  return "Funktioniert, wenn du die App auf claude.ai oder als Android-App öffnest.";
-}
-function openPhoto(kind, raceId){
-  if(raceId) ui.race=raceId;
-  ensureRace();
-  SH={type:"photo", kind:kind, step:"choose", race:raceId || (kind==="power" ? powerTarget() : ui.race)};
-  if(kind==="power" && !raceId && ui.view==="race") SH.race=ui.race;
-  showSheet();
-}
-function photoKinds(){
-  var id=SH.race, out=sessionsOf(id).map(function(s){ return [s, SESSSHORT[s]]; });
-  out.push(["power","R&D"]);
-  return out;
-}
-function sheetPhoto(){
-  var R=S.races[raceIndex(SH.race)], h=[];
-  if(SH.step==="choose"){
-    h.push('<div class="small muted">'+esc(raceLabel(R))+'</div>');
-    h.push('<div class="field"><span class="lbl2">Was ist auf dem Foto?</span><div class="seg sm" role="group" aria-label="Was ist auf dem Foto">'+segBtns("ph-kind", SH.kind, photoKinds())+'</div></div>');
-    h.push('<div class="card" style="background:var(--card-2);border:0;display:flex;gap:12px;align-items:flex-start"><span style="flex:0 0 auto;color:var(--ink-2)">'+ico(IC.image,26,1.7)+'</span><div class="small">'+
-      (SH.kind==="power" ? 'Mach ein Foto oder Bildschirmfoto vom R&D-Vergleich der Teams im Spiel. Claude schätzt daraus die Stärke jedes Autos (0 bis 100).' :
-        'Mach ein Foto vom Fernseher oder nimm ein Bildschirmfoto vom Ergebnis-Bildschirm ('+esc(SESSLBL[SH.kind])+'). '+(photoMax()>1 ? 'Passt die Liste nicht auf ein Bild, wähl bis zu '+photoMax()+' Bilder auf einmal.' : ''))+
-      ' Danach kannst du alles prüfen, bevor es gespeichert wird.</div></div>');
-    h.push('<div class="photoacts"><button type="button" class="bigact photo" style="flex-direction:column;align-items:flex-start;gap:8px" data-act="ph-cam"><span class="ic">'+ico(IC.camera,22)+'</span><span class="tt">Foto machen</span></button>'+
-      '<button type="button" class="bigact hand" style="flex-direction:column;align-items:flex-start;gap:8px" data-act="ph-choose"><span class="ic">'+ico(IC.image,22)+'</span><span class="tt">Bilder wählen</span></button></div>');
-    if(!CAP.sample) h.push('<p class="small muted" style="margin:0">Wird über deinen Claude-API-Schlüssel ausgelesen (ein paar Cent pro Foto).</p>');
-    return {title:"Foto auslesen", body:h.join(""), foot:'<button type="button" class="btn wide" data-act="sheet-close">Abbrechen</button>'};
-  }
-  if(SH.step==="busy"){
-    return {title:"Foto auslesen", body:'<div class="tyre"><div class="spin"></div><b style="font:800 20px var(--display);text-transform:uppercase">Claude liest das Foto …</b><span class="small muted">Das dauert meist 10 bis 30 Sekunden.</span></div>',
-      foot:'<button type="button" class="btn" data-act="sheet-close">Abbrechen</button>'};
-  }
-  if(SH.step==="error"){
-    return {title:"Foto auslesen", body:'<div class="banner">'+esc(SH.err)+'</div>', foot:'<button type="button" class="btn" data-act="sheet-close">Schließen</button><button type="button" class="btn pri" data-act="ph-retry">Nochmal</button>'};
-  }
-  // Prüfen
-  if(SH.kind==="power"){
-    h.push('<p class="small muted" style="margin:0">Erkannt für '+esc(R.name)+'. Korrigier die Werte, falls nötig.'+(SH.note ? ' Hinweis: '+esc(SH.note) : '')+'</p>');
-    S.teams.forEach(function(t,k){
-      var v=SH.vals[k];
-      h.push('<div class="brow">'+logoHtml(t,30)+'<span class="lbl" style="width:auto;flex:0 1 100px">'+esc(t.name)+'</span>'+
-        '<input type="range" class="range" min="0" max="100" value="'+(isNum(v) ? v : 0)+'" data-inp="ph-pw" data-k="'+k+'" aria-label="Autostärke '+esc(t.name)+'" style="flex:1;accent-color:'+t.color+'">'+
-        '<span class="v num" id="phpw-'+k+'">'+(isNum(v) ? v : "–")+'</span></div>');
-    });
-    return {title:"Prüfen", body:h.join(""), foot:'<button type="button" class="btn" data-act="ph-retry">Anderes Foto</button><button type="button" class="btn pri" data-act="ph-apply">Übernehmen</button>'};
-  }
-  var cnt={}; SH.rows.forEach(function(r){ if(r.d!=null) cnt[r.d]=(cnt[r.d]||0)+1; });
-  var unknown=SH.rows.filter(function(r){ return r.d==null; }).length, dup=Object.keys(cnt).filter(function(k){ return cnt[k]>1; }).length;
-  h.push('<p class="small muted" style="margin:0">'+esc(SESSLBL[SH.kind])+' · '+esc(R.name)+'. '+SH.rows.length+' Einträge erkannt.'+
-    (unknown ? ' <b style="color:var(--red)">'+unknown+' Fahrer nicht zugeordnet.</b>' : '')+(dup ? ' <b style="color:var(--red)">Doppelte Fahrer markiert.</b>' : '')+(SH.note ? ' Hinweis: '+esc(SH.note) : '')+'</p>');
-  h.push('<div class="list">'+SH.rows.map(function(r,i){
-    var bad=r.d==null || cnt[r.d]>1;
-    return '<div class="slot" style="'+(bad ? 'background:var(--red-soft);border-radius:12px' : '')+'"><span class="p">'+(r.dnf ? 'DNF' : 'P'+r.pos)+'</span>'+
-      (r.d!=null ? dLogo(r.d,28) : '<span class="dash"></span>')+
-      '<span style="flex:1;min-width:0;display:flex;flex-direction:column"><select class="inp" style="min-height:38px;padding:4px 28px 4px 8px" data-chg="ph-row" data-i="'+i+'" aria-label="Fahrer für '+(r.dnf ? 'Ausfall' : 'P'+r.pos)+'">'+
-      '<option value="">– nicht übernehmen –</option>'+S.drivers.map(function(dv,d){ return '<option value="'+d+'"'+(r.d===d ? ' selected' : '')+'>'+esc(dv.name)+'</option>'; }).join("")+'</select>'+
-      (r.name ? '<span class="small muted" style="margin-top:2px">auf dem Foto: '+esc(r.name)+'</span>' : '')+'</span></div>';
-  }).join("")+'</div>');
-  if(SH.kind==="r" || SH.kind==="s"){
-    h.push('<div class="field"><label for="ph-fl">Schnellste Runde</label><select class="inp" id="ph-fl" data-chg="ph-fl"><option value="">– keine –</option>'+
-      S.drivers.map(function(dv,d){ return '<option value="'+d+'"'+(SH.fl===d ? ' selected' : '')+'>'+esc(dv.name)+'</option>'; }).join("")+'</select></div>');
-  }
-  return {title:"Prüfen", body:h.join(""), foot:'<button type="button" class="btn" data-act="ph-retry">Anderes Foto</button><button type="button" class="btn pri" data-act="ph-apply">Übernehmen</button>'};
-}
 function normName(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim(); }
-function matchName(nm){
-  var n=normName(nm); if(!n) return null;
-  var best=null, bestScore=0;
-  for(var d=0; d<ND; d++){
-    var full=normName(dname(d)); if(!full) continue;
-    var toks=full.split(" "), last=toks[toks.length-1], score=0;
-    if(full===n) score=10;
-    else if(last.length>2 && n.split(" ").indexOf(last)>=0) score=6;
-    else if(last.length>3 && n.indexOf(last)>=0) score=4;
-    else if(n.length>3 && full.indexOf(n)>=0) score=3;
-    if(score>bestScore){ bestScore=score; best=d; }
-  }
-  return best;
-}
-function photoPrompt(kind, n){
-  if(kind==="power"){
-    return "Du siehst "+(n>1 ? n+" Bilder" : "ein Foto oder Bildschirmfoto")+" eines Diagramms zur Fahrzeugentwicklung (R&D, Leistungsvergleich der Teams) aus einem Formel-Rennspiel.\n"+
-      "Teams in diesem Spielstand (Index: Name):\n"+S.teams.map(function(t,k){ return k+": "+t.name; }).join("\n")+"\n\n"+
-      "Schätze für jedes Team die Gesamtstärke des Autos auf einer Skala von 0 bis 100. Das stärkste Team im Bild bekommt etwa 100, die anderen im Verhältnis dazu (nach Balkenlänge, Punktwerten oder Position im Diagramm). "+
-      "Zeigt das Bild einzelne Bereiche (zum Beispiel Aerodynamik, Chassis, Antrieb, Haltbarkeit), bilde daraus einen sinnvollen Gesamtwert. Ordne die Teams über Namen, Farben oder Logos zu. Teams, die nicht zu sehen sind, bekommen \"value\": -1.\n"+
-      "Antworte nur mit JSON in genau dieser Form:\n{\"teams\":[{\"team\":0,\"value\":95}],\"note\":\"kurzer Hinweis oder leer\"}";
-  }
-  return "Du siehst "+(n>1 ? n+" Bildschirmfotos" : "ein Foto oder Bildschirmfoto")+" eines Ergebnis-Bildschirms aus einem Formel-Rennspiel. Session: "+SESSLBL[kind]+".\n"+
-    "Lies die Reihenfolge der Fahrer ab und ordne jeden Fahrer einem Eintrag dieser Liste zu (Index: Startnummer, Name, Team):\n"+
-    S.drivers.map(function(dv,d){ var t=teamOfD(d); return d+": #"+(dv.num||"-")+", "+dv.name+", "+(t ? t.name : "-"); }).join("\n")+"\n\n"+
-    "Regeln:\n- Positionen genau wie auf dem Bild (1, 2, 3 ...). Bei mehreren Bildern gehören sie zur selben Session: setze die Liste fort.\n"+
-    "- Ausgefallene oder disqualifizierte Fahrer (DNF, DSQ, Ret, Aufgegeben): \"dnf\": true und \"pos\": 0.\n"+
-    "- Erkennst du einen Fahrer nicht sicher, setze \"driver\": -1 und schreib den Namen vom Bild in \"name\".\n"+
-    "- Schnellste Runde: wenn auf dem Bild markiert (zum Beispiel lila Symbol oder eigene Spalte), den Index in \"fastest\", sonst -1.\n"+
-    "Antworte nur mit JSON in genau dieser Form:\n{\"rows\":[{\"pos\":1,\"driver\":0,\"name\":\"Name wie auf dem Bild\",\"dnf\":false}],\"fastest\":-1,\"note\":\"kurzer Hinweis oder leer\"}";
-}
-/* Fotos für die API verkleinern: längste Seite höchstens 1600 px, JPEG */
-function prepImage(file){
-  return new Promise(function(res, rej){
-    var url=URL.createObjectURL(file), img=new Image();
-    img.onload=function(){
-      var mx=1600, sc=Math.min(1, mx/Math.max(img.naturalWidth, img.naturalHeight));
-      var c=document.createElement("canvas"); c.width=Math.max(1,Math.round(img.naturalWidth*sc)); c.height=Math.max(1,Math.round(img.naturalHeight*sc));
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      res(c.toDataURL("image/jpeg", 0.88).split(",")[1]);
-    };
-    img.onerror=function(){ URL.revokeObjectURL(url); rej({code:"image_rejected"}); };
-    img.src=url;
-  });
-}
-var SCHEMA_RESULTS={type:"object", additionalProperties:false, required:["rows","fastest","note"], properties:{
-  rows:{type:"array", items:{type:"object", additionalProperties:false, required:["pos","driver","name","dnf"],
-    properties:{pos:{type:"integer"}, driver:{type:"integer"}, name:{type:"string"}, dnf:{type:"boolean"}}}},
-  fastest:{type:"integer"}, note:{type:"string"}}};
-var SCHEMA_POWER={type:"object", additionalProperties:false, required:["teams","note"], properties:{
-  teams:{type:"array", items:{type:"object", additionalProperties:false, required:["team","value"], properties:{team:{type:"integer"}, value:{type:"integer"}}}},
-  note:{type:"string"}}};
-/* Claude über den eigenen API-Schlüssel (Android-App oder Browser) */
-function askClaudeApi(kind, list, signal){
-  var A=N.Anthropic;
-  var client=new A({apiKey:getApiKey(), dangerouslyAllowBrowser:true, maxRetries:1});
-  return Promise.all(list.map(prepImage)).then(function(imgs){
-    var content=imgs.map(function(b64){ return {type:"image", source:{type:"base64", media_type:"image/jpeg", data:b64}}; });
-    content.push({type:"text", text:photoPrompt(kind, imgs.length)});
-    return client.beta.messages.create({
-      model:"claude-opus-5-5",
-      max_tokens:16000,
-      betas:["server-side-fallback-2026-07-01"],
-      fallbacks:"default",
-      output_config:{effort:"medium", format:{type:"json_schema", schema: kind==="power" ? SCHEMA_POWER : SCHEMA_RESULTS}},
-      messages:[{role:"user", content:content}]
-    }, {signal:signal});
-  }).then(function(res){
-    if(res.stop_reason==="refusal") throw {code:"refused"};
-    if(res.stop_reason==="max_tokens") throw {code:"nothing"};
-    var txt=res.content.filter(function(b){ return b.type==="text"; }).map(function(b){ return b.text; }).join("");
-    try{ return JSON.parse(txt); }catch(e){ throw {code:"nothing"}; }
-  }, function(e){
-    if(e && e.code) throw e;
-    if(A.APIUserAbortError && e instanceof A.APIUserAbortError) throw {code:"cancelled"};
-    if(e instanceof A.AuthenticationError || e instanceof A.PermissionDeniedError) throw {code:"auth"};
-    if(e instanceof A.RateLimitError) throw {code:"rate_limited"};
-    if(e instanceof A.BadRequestError) throw {code:"bad", message:e.message};
-    if(e instanceof A.APIConnectionError) throw {code:"offline"};
-    if(e instanceof A.APIError) throw {code:"api", message:e.message};
-    if(e && e.name==="AbortError") throw {code:"cancelled"};
-    throw e;
-  });
-}
-function runPhoto(files){
-  var kind=SH.kind, me=SH;
-  var list=Array.prototype.slice.call(files, 0, photoMax());
-  SH.step="busy"; SH.ctrl=new AbortController(); renderSheet();
-  var job;
-  if(CAP.sample){
-    job=getCap("sample").then(function(sample){
-      if(!sample) throw {code:"unavailable"};
-      return sample.json(photoPrompt(kind, list.length), {images:list, signal:me.ctrl.signal});
-    });
-  } else if(apiReady()) job=askClaudeApi(kind, list, me.ctrl.signal);
-  else job=Promise.reject({code:"unavailable"});
-  job.then(function(res){
-    if(SH!==me) return;
-    me.ctrl=null;
-    if(kind==="power"){
-      var vals=S.teams.map(function(){ return null; });
-      (res && Array.isArray(res.teams) ? res.teams : []).forEach(function(x){
-        if(x && isNum(x.team) && x.team>=0 && x.team<S.teams.length && isNum(x.value) && x.value>=0) vals[x.team]=clamp(Math.round(x.value),0,100);
-      });
-      if(!vals.some(function(v){ return v!=null; })) throw {code:"nothing"};
-      me.vals=vals; me.note=res && typeof res.note==="string" ? res.note.slice(0,200) : "";
-    } else {
-      var rows=[];
-      (res && Array.isArray(res.rows) ? res.rows : []).forEach(function(x){
-        if(!x) return;
-        var d=(isNum(x.driver) && x.driver>=0 && x.driver<ND) ? x.driver : matchName(x.name);
-        var dnf=!!x.dnf, pos=(isNum(x.pos) && x.pos>=1) ? Math.round(x.pos) : null;
-        if(!dnf && (pos===null || pos>ND)) return;
-        rows.push({pos:dnf ? null : pos, d:d==null ? null : d, name:typeof x.name==="string" ? x.name.slice(0,60) : "", dnf:dnf});
-      });
-      if(!rows.length) throw {code:"nothing"};
-      rows.sort(function(a,b){ if(a.dnf!==b.dnf) return a.dnf ? 1 : -1; return (a.pos||0)-(b.pos||0); });
-      me.rows=rows;
-      me.fl=(res && isNum(res.fastest) && res.fastest>=0 && res.fastest<ND) ? res.fastest : null;
-      me.note=res && typeof res.note==="string" ? res.note.slice(0,200) : "";
+/* Fahrer zu getippten Buchstaben finden: ganzer Name, Startnummer, Anfang, Anfang eines Wortes, irgendwo im Namen.
+   Bei mehreren Treffern gewinnt ein Fahrer, der in dieser Session noch keinen Platz hat. */
+function matchDriver(v, arr){
+  var q=normName(v); if(!q) return -1;
+  var names=[], d;
+  for(d=0; d<ND; d++) names.push(normName(dname(d)));
+  var rules=[
+    function(d){ return names[d]===q; },
+    function(d){ return String(dnum(d)||"").trim()===q; },
+    function(d){ return names[d].indexOf(q)===0; },
+    function(d){ return names[d].split(" ").some(function(w){ return w.indexOf(q)===0; }); },
+    function(d){ return names[d].replace(/ /g,"").indexOf(q.replace(/ /g,""))>=0; }
+  ];
+  for(var r=0;r<rules.length;r++){
+    var hits=[];
+    for(d=0; d<ND; d++) if(names[d] && rules[r](d)) hits.push(d);
+    if(hits.length){
+      if(arr) for(var i=0;i<hits.length;i++) if(arr[hits[i]]==null) return hits[i];
+      return hits[0];
     }
-    me.step="review"; renderSheet();
-  }).catch(function(e){
-    if(SH!==me) return;
-    me.ctrl=null;
-    var c=e && e.code, msg;
-    if(c==="cancelled") return;
-    if(c==="nothing") msg="Auf dem Foto konnte nichts Passendes erkannt werden. Probier ein schärferes Bild, auf dem die ganze Liste zu sehen ist.";
-    else if(c==="not_granted") msg="Du hast der App nicht erlaubt, Claude zu fragen. Wenn du es doch nutzen willst, tipp auf „Nochmal“ und erlaube es.";
-    else if(c==="rate_limited") msg="Gerade zu viele Anfragen. Warte kurz und versuch es dann nochmal.";
-    else if(c==="image_rejected") msg="Dieses Bild wurde nicht angenommen. Nimm ein JPG oder PNG, das nicht zu groß ist.";
-    else if(c==="auth") msg="Der Claude-API-Schlüssel wurde nicht angenommen. Prüf ihn unter Einstellungen \u2192 Foto-Auslesen.";
-    else if(c==="offline") msg="Keine Verbindung zu Claude. Prüf deine Internetverbindung und versuch es nochmal.";
-    else if(c==="bad" || c==="api") msg="Claude hat die Anfrage abgelehnt: "+String(e.message||"").slice(0,180);
-    else if(c==="unavailable" || c==="images_unavailable") msg=photoHint();
-    else if(c==="refused") msg="Claude konnte dieses Bild nicht auslesen. Versuch ein anderes Foto.";
-    else msg="Das Auslesen hat nicht geklappt. Versuch es nochmal oder trag es von Hand ein.";
-    me.err=msg; me.step="error"; renderSheet();
-  });
-}
-function applyPhoto(){
-  var id=SH.race, R=S.res[id];
-  if(SH.kind==="power"){
-    S.power[id]=SH.vals.map(function(v){ return isNum(v) ? v : null; });
-    touch(); closeSheet(); toast("Autostärke gespeichert"); refresh(); return;
   }
-  var k=SH.kind, arr=nulls();
-  SH.rows.forEach(function(r){ if(r.d==null) return; arr[r.d]= r.dnf ? DNF : r.pos; });
-  R[k]=arr;
-  if(k==="r") R.flr=SH.fl; if(k==="s") R.fls=SH.fl;
-  ui.race=id; ui.sess=k;
-  touch(); closeSheet();
-  toast(SESSLBL[k]+" übernommen");
-  if(k==="r") pendingConfetti=true;
-  refresh();
+  return -1;
 }
 
-/* Logos verkleinern */
+/* Logos verkleinern: quadratisch, 160 px */
+function logoFromSrc(src, k){
+  var img=new Image();
+  img.onload=function(){
+    try{
+      var size=160, c=document.createElement("canvas"); c.width=size; c.height=size;
+      var g=c.getContext("2d"), sc=Math.min(size/img.naturalWidth, size/img.naturalHeight), w=img.naturalWidth*sc, hh=img.naturalHeight*sc;
+      g.drawImage(img, (size-w)/2, (size-hh)/2, w, hh);
+      var url=c.toDataURL("image/webp", 0.88);
+      if(url.indexOf("data:image/webp")!==0) url=c.toDataURL("image/png");
+      if(S.teams[k]){ S.teams[k].logo=cleanLogo(url); touch(); if(SH && SH.type==="logo") closeSheet(); refresh(); toast("Logo gespeichert"); }
+    }catch(e){ toast("Dieses Bild konnte nicht verarbeitet werden"); }
+  };
+  img.onerror=function(){ toast("Dieses Bild konnte nicht gelesen werden"); };
+  img.src=src;
+}
 function readLogo(file, k){
   var fr=new FileReader();
-  fr.onload=function(){
-    var img=new Image();
-    img.onload=function(){
-      var size=160, c=document.createElement("canvas"); c.width=size; c.height=size;
-      var g=c.getContext("2d"), s=Math.min(size/img.width, size/img.height), w=img.width*s, hh=img.height*s;
-      g.drawImage(img, (size-w)/2, (size-hh)/2, w, hh);
-      var url=c.toDataURL("image/webp", 0.86);
-      if(url.indexOf("data:image/webp")!==0) url=c.toDataURL("image/png");
-      if(S.teams[k]){ S.teams[k].logo=cleanLogo(url); touch(); refresh(); toast("Logo gespeichert"); }
-    };
-    img.onerror=function(){ toast("Dieses Bild konnte nicht gelesen werden"); };
-    img.src=fr.result;
-  };
+  fr.onload=function(){ logoFromSrc(String(fr.result), k); };
+  fr.onerror=function(){ toast("Dieses Bild konnte nicht gelesen werden"); };
   fr.readAsDataURL(file);
+}
+function pickLogo(k, camera){
+  if(NATIVE && N.Camera){
+    var job = camera ? N.Camera.takePhoto({quality:90, correctOrientation:true})
+                     : N.Camera.chooseFromGallery({mediaType:N.MediaTypeSelection.Photo, quality:90});
+    job.then(function(r){
+      var m = camera ? r : (r && r.results && r.results[0]);
+      if(!m) return;
+      var src = m.webPath || (m.thumbnail ? "data:image/jpeg;base64,"+m.thumbnail : "");
+      if(!src){ toast("Dieses Bild konnte nicht gelesen werden"); return; }
+      logoFromSrc(src, k);
+    }).catch(function(e){
+      var msg=String((e && (e.message||e.code)) || e);
+      if(/cancel|abgebrochen/i.test(msg)) return;
+      toast(camera ? "Kamera nicht verfügbar \u2013 erlaub den Zugriff in den Android-Einstellungen" : "Galerie konnte nicht geöffnet werden");
+    });
+    return;
+  }
+  logoFor=k;
+  var inp=$(camera ? "file-cam" : "file-logo"); inp.value=""; inp.click();
+}
+function sheetLogo(){
+  var t=S.teams[SH.k];
+  if(!t) return {title:"Logo", body:""};
+  return {title:"Logo", body:'<div class="row" style="gap:16px;flex-wrap:nowrap">'+logoHtml(t,84)+'<div><div style="font:800 24px/1.05 var(--display);text-transform:uppercase">'+esc(t.name)+'</div>'+
+      '<div class="small muted">Zeichne dein Logo, fotografiere es oder nimm ein Bild aus der Galerie. Es wird automatisch quadratisch eingepasst.</div></div></div>'+
+    '<div class="photoacts"><button type="button" class="bigact photo" style="flex-direction:column;align-items:flex-start;gap:8px" data-act="logo-gallery" data-k="'+SH.k+'"><span class="ic">'+ico(IC.image,22)+'</span><span class="tt">Aus der Galerie</span></button>'+
+    '<button type="button" class="bigact hand" style="flex-direction:column;align-items:flex-start;gap:8px" data-act="logo-camera" data-k="'+SH.k+'"><span class="ic">'+ico(IC.camera,22)+'</span><span class="tt">Foto machen</span></button></div>'+
+    (t.logo ? '<button type="button" class="btn danger" data-act="logo-rm" data-k="'+SH.k+'">Logo entfernen</button>' : ''),
+    foot:'<button type="button" class="btn wide" data-act="sheet-close">Fertig</button>'};
 }
 
 /* ================= Konfetti & Toast ================= */
@@ -2377,7 +2334,6 @@ document.addEventListener("click", function(e){
     case "sess": ui.sess=v; refresh(); break;
     case "entry-toggle": ui.entryOpen=!ui.entryOpen; el.setAttribute("aria-expanded", ui.entryOpen); var rv=el.parentNode.querySelector(".reveal"); if(rv) rv.classList.toggle("open", ui.entryOpen); break;
     case "entry-open": openEntry(ui.sess); break;
-    case "photo-open": openPhoto(el.getAttribute("data-kind"), el.getAttribute("data-r")); break;
     case "power-hand": openPower(el.getAttribute("data-r")); break;
     case "race-clear": askConfirm({title:"Wochenende leeren?", text:"Alle Ergebnisse von <b>"+esc(S.races[raceIndex(ui.race)].name)+"</b> werden gelöscht. Autostärke und Notizen bleiben.", ok:"Leeren", danger:true,
       onOk:function(){ var R=S.res[ui.race], n=R.notes; S.res[ui.race]=blankSession(); S.res[ui.race].notes=n; touch(); refresh(); toast("Geleert"); }}); break;
@@ -2400,29 +2356,10 @@ document.addEventListener("click", function(e){
       toast("Neue Saison angelegt – Fahrerwechsel hier eintragen"); break; }
     case "confirm-ok": { var o=SH.o; closeSheet(); o.onOk(); break; }
     /* Eintragen */
-    case "e-sess": SH.sess=v; SH.mode="slots"; renderSheet(); break;
-    case "e-slot": SH.cur=+el.getAttribute("data-p"); SH.mode="pick"; SH.slotsScroll=$("sheet-body").scrollTop; renderSheet(); break;
-    case "e-back": SH.mode="slots"; renderSheet(); $("sheet-body").scrollTop=SH.slotsScroll||0; break;
-    case "e-dnf-add": SH.mode="dnf"; SH.slotsScroll=$("sheet-body").scrollTop; renderSheet(); break;
-    case "e-dnf-rm": { S.res[ui.race][SH.sess][+el.getAttribute("data-d")]=null; touch(); SH.keepScroll=true; renderSheet(); break; }
-    case "e-pick": {
-      var arr=S.res[ui.race][SH.sess], d=+el.getAttribute("data-d");
-      if(SH.mode==="dnf"){ arr[d]=DNF; SH.mode="slots"; touch(); renderSheet(); $("sheet-body").scrollTop=SH.slotsScroll||0; break; }
-      for(var j=0;j<ND;j++) if(arr[j]===SH.cur) arr[j]=null;
-      arr[d]=SH.cur; touch();
-      var nf=nextFree(arr, SH.cur+1);
-      var unplaced=arr.filter(function(x){ return x==null; }).length;
-      if(nf && unplaced>0){ SH.cur=nf; renderSheet(); $("sheet-body").scrollTop=0; }
-      else { SH.mode="slots"; renderSheet(); $("sheet-body").scrollTop=SH.slotsScroll||0; }
-      break; }
-    case "e-clearslot": { var ar=S.res[ui.race][SH.sess]; for(var q=0;q<ND;q++) if(ar[q]===SH.cur) ar[q]=null; touch(); SH.mode="slots"; renderSheet(); break; }
+    case "e-sess": SH.sess=v; renderSheet(); setTimeout(focusFirstEmpty, 50); break;
     case "e-clearsess": { var s0=SH.sess; S.res[ui.race][s0]=nulls(); if(s0==="r") S.res[ui.race].flr=null; if(s0==="s") S.res[ui.race].fls=null; touch(); renderSheet(); break; }
     case "e-done": { var sd=SH.sess; ui.sess=sd; closeSheet(); if(sd==="r" && S.res[ui.race].r.indexOf(1)>=0) pendingConfetti=true; refresh(); toast("Gespeichert"); break; }
     /* Foto */
-    case "ph-kind": SH.kind=v; renderSheet(); break;
-    case "ph-choose": $("file-img").value=""; $("file-img").click(); break;
-    case "ph-retry": SH.step="choose"; renderSheet(); break;
-    case "ph-apply": applyPhoto(); break;
     /* Autostärke */
     case "pw-save": S.power[SH.race]=SH.vals.slice(); touch(); closeSheet(); toast("Autostärke gespeichert"); refresh(); break;
     case "pw-del": delete S.power[SH.race]; touch(); closeSheet(); toast("Autostärke gelöscht"); refresh(); break;
@@ -2430,12 +2367,11 @@ document.addEventListener("click", function(e){
     case "mode": S.mode=v; touch(); refresh(); break;
     case "theme": switchTheme(v, el); break;
     case "theme-toggle": switchTheme(isDark() ? "light" : "dark", el); break;
-    case "api-save": { var kv=($("api-key").value||"").trim(); if(!/^sk-ant-/.test(kv)){ toast("Das sieht nicht nach einem Claude-Schlüssel aus (beginnt mit sk-ant-)"); break; } setApiKey(kv); refresh(); toast("Schlüssel gespeichert"); break; }
-    case "api-del": setApiKey(""); refresh(); toast("Schlüssel entfernt"); break;
-    case "ph-cam": $("file-cam").value=""; $("file-cam").click(); break;
     case "motion": APP.prefs.motion=!APP.prefs.motion; touch(); refresh(); break;
-    case "logo": logoFor=+el.getAttribute("data-k"); $("file-logo").value=""; $("file-logo").click(); break;
-    case "logo-rm": S.teams[+el.getAttribute("data-k")].logo=""; touch(); refresh(); break;
+    case "logo": SH={type:"logo", k:+el.getAttribute("data-k")}; showSheet(); break;
+    case "logo-gallery": pickLogo(+el.getAttribute("data-k"), false); break;
+    case "logo-camera": pickLogo(+el.getAttribute("data-k"), true); break;
+    case "logo-rm": S.teams[+el.getAttribute("data-k")].logo=""; touch(); if(SH && SH.type==="logo") closeSheet(); refresh(); break;
     case "team-add": S.teams.push(normTeam({name:"Mein Team", color:"#FFC93C"}, S.teams.length)); touch(); refresh(); toast("Team hinzugefügt – Fahrer zuordnen nicht vergessen"); break;
     case "team-del": {
       var tk=+el.getAttribute("data-k");
@@ -2504,7 +2440,6 @@ document.addEventListener("input", function(e){
     case "notes": if(S.res[ui.race]){ S.res[ui.race].notes=v.slice(0,4000); touch(); } break;
     case "predw": APP.prefs.predW=clamp((+v)/100,0,1); var l=$("predw-l"); if(l) l.textContent="Auto "+Math.round(+v)+" %"; break;
     case "pw": SH.vals[t]=+v; $("pw-"+t).textContent=v; break;
-    case "ph-pw": SH.vals[t]=+v; $("phpw-"+t).textContent=v; break;
   }
 });
 document.addEventListener("change", function(e){
@@ -2518,12 +2453,9 @@ document.addEventListener("change", function(e){
     case "dteam": S.dTeam[+el.getAttribute("data-d")]=+v; touch(); refresh(); break;
     case "tcolor": S.teams[+el.getAttribute("data-k")].color=hexc(v, "#888888"); touch(); refresh(); break;
     case "e-fl": { var fk=SH.sess==="r" ? "flr" : "fls"; S.res[ui.race][fk]= v==="" ? null : +v; touch(); break; }
-    case "ph-row": SH.rows[+el.getAttribute("data-i")].d = v==="" ? null : +v; SH.keepScroll=true; renderSheet(); break;
-    case "ph-fl": SH.fl = v==="" ? null : +v; break;
   }
 });
-$("file-img").addEventListener("change", function(){ var f=this.files; if(f && f.length && SH && SH.type==="photo") runPhoto(f); });
-$("file-cam").addEventListener("change", function(){ var f=this.files; if(f && f.length && SH && SH.type==="photo") runPhoto(f); });
+$("file-cam").addEventListener("change", function(){ var f=this.files && this.files[0]; if(f && logoFor!=null) readLogo(f, logoFor); });
 $("file-logo").addEventListener("change", function(){ var f=this.files && this.files[0]; if(f && logoFor!=null) readLogo(f, logoFor); });
 $("file-json").addEventListener("change", function(){
   var f=this.files && this.files[0]; if(!f) return;
@@ -2554,9 +2486,7 @@ buildNav();
 if(NATIVE) showIntro();
 render(true);
 showBanner();
-checkCaps();
 if(NATIVE){
-  N.Preferences.get({key:KEY_API}).then(function(r){ if(r && r.value && !getApiKey()){ setApiKey(r.value); if(S) refresh(); } }).catch(function(){});
   if(!APP.saves.length){
     N.Preferences.get({key:KEY}).then(function(r){
       if(r && r.value){ try{ APP=normApp(JSON.parse(r.value)); saveLocal(); render(true); }catch(e){} }

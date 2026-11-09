@@ -1,7 +1,7 @@
 # F1 Manager
 
 Meisterschafts-App für die Karriere im F1-Spiel: Wertung, Rennwochenenden, Statistiken, Titelprognose und Teamentwicklung.
-Hell- und Dunkelmodus, Animationen, eigene Team-Logos und Foto-Auslesen von Ergebnissen und R&D-Charts mit Claude.
+Hell- und Dunkelmodus, Animationen, eigene Team-Logos, Teamvergleich und schnelles Eintragen per Anfangsbuchstaben.
 
 ## Android-App
 
@@ -14,7 +14,7 @@ Repository-Secret hinterlegt werden: `ANDROID_KEYSTORE_BASE64` (Keystore als Bas
 
 ## Aufbau
 
-- `src/` – Quellcode der App (`style.css`, `body.html`, `app.js`, `native.js` für Android und Claude-SDK)
+- `src/` – Quellcode der App (`style.css`, `body.html`, `app.js`, `native.js` für die Android-Plugins)
 - `build.sh` – baut `www/` (Android-App und Browser) und `dist/f1-manager.html` (Version für claude.ai)
 - `android/` – Capacitor-Projekt für Android
 - `.github/workflows/android.yml` – baut die APK
@@ -25,5 +25,3 @@ Lokal bauen: `npm ci && npm run android`, danach `cd android && ./gradlew assemb
 
 Daten bleiben auf dem Gerät. Über Einstellungen → Daten & Sync lassen sie sich als Text oder Datei sichern
 und auf einem anderen Gerät wieder einfügen. Sicherungen der alten HTML-Datei werden beim Import erkannt.
-Für das Foto-Auslesen in der Android-App braucht es einen eigenen Claude-API-Schlüssel (Einstellungen → Foto-Auslesen);
-er bleibt auf dem Gerät und ist nicht in Sicherungen enthalten.

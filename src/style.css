@@ -187,9 +187,9 @@ button.li:hover{background:var(--card-2)}
 .tip div{display:flex;justify-content:space-between;gap:10px}
 
 /* Raster */
-.gridwrap{overflow:auto;max-height:70vh;border-radius:var(--r)}
+.gridwrap{overflow-x:auto;border-radius:var(--r)}
 table.mx{border-collapse:separate;border-spacing:0;font-size:13px}
-table.mx th,table.mx td{padding:0;height:38px;text-align:center;border-bottom:1px solid var(--line);background:var(--card)}
+table.mx th,table.mx td{padding:0;height:36px;text-align:center;border-bottom:1px solid var(--line);background:var(--card)}
 table.mx thead th{position:sticky;top:0;z-index:2;background:var(--card-2);font:700 13px var(--display);letter-spacing:.03em;padding:0 4px;min-width:40px}
 table.mx .stk{position:sticky;left:0;z-index:3;background:var(--card);text-align:left;padding:0 10px;min-width:150px;max-width:150px;border-right:1px solid var(--line-2)}
 table.mx thead .stk{z-index:4;background:var(--card-2)}
@@ -374,3 +374,35 @@ html.nomo *, html.nomo *::before, html.nomo *::after{animation:none!important;tr
 .keyrow{display:flex;gap:8px;align-items:center}
 .keyrow .inp{font-family:var(--mono);font-size:14px}
 .okline{display:flex;align-items:center;gap:8px;color:var(--green);font-weight:700;font-size:14px}
+
+/* Eintragen per Tastatur */
+.elist{display:flex;flex-direction:column}
+.erow{display:grid;grid-template-columns:40px 32px minmax(0,1fr);align-items:center;gap:8px;padding:3px 0;border-top:1px solid var(--line);position:relative}
+.erow:first-child{border-top:0}
+.erow .p{font:800 17px var(--display);color:var(--ink-3)}
+.erow.sc .p{color:var(--green)}
+.erow.dnf .p,.erow.add .p{color:var(--red);font-size:14px}
+.erow .elogo{display:flex;align-items:center;justify-content:center;width:32px;height:32px}
+.erow .elogo .dash{width:28px;height:28px}
+.einp{width:100%;min-height:42px;border:1px solid transparent;border-radius:10px;background:transparent;padding:6px 10px;font-size:16px;font-weight:600;color:var(--ink);transition:background .2s,border-color .2s}
+.einp::placeholder{color:var(--ink-3);font-weight:500}
+.einp:focus{outline:none;background:var(--card-2);border-color:var(--accent)}
+.erow.live .elogo{animation:introPop .35s cubic-bezier(.2,1.4,.4,1)}
+.ehint{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--accent);font-weight:700;pointer-events:none;white-space:nowrap;max-width:55%;overflow:hidden;text-overflow:ellipsis}
+
+/* Teamvergleich */
+.duelgrid{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:860px){.duelgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.duelgrid > .h2{grid-column:1 / -1}}
+.duelnames{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
+.duelnames span{display:flex;align-items:center;gap:8px;min-width:0;font-size:15px}
+.duelnames b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.duelnames .r{justify-content:flex-end;text-align:right}
+.duel{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:10px;min-height:36px}
+.duel .dv{font:800 18px var(--display);color:var(--ink-2)}
+.duel .dv.r{text-align:right}
+.duel .dv.win{color:var(--ink)}
+.duel .dmid{display:flex;flex-direction:column;gap:4px;min-width:0}
+.duel .dl{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;text-align:center}
+.duel .dbar{display:flex;height:7px;border-radius:4px;overflow:hidden;gap:2px;background:var(--line)}
+.duel .dbar i{display:block;height:100%;transform-origin:left;animation:grow .8s cubic-bezier(.2,.8,.2,1) both}
+.still .duel .dbar i{animation:none}
