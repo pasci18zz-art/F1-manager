@@ -498,3 +498,21 @@ table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))
 .calrow{gap:6px}
 .calrow .inp.fl{width:46px;font-size:18px}
 .calrow .calno{width:18px}
+
+/* Kalender: ausgegraute Strecken */
+.calrow.off{opacity:.45}
+.calrow.off.dragging{opacity:1}
+.caldiv{font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;padding:12px 0 4px;border-top:2px dashed var(--line-2);margin-top:6px}
+/* Bemerkungen */
+.memoseg{overflow-x:auto;scrollbar-width:none}
+.memoseg button{white-space:nowrap;min-width:max-content;padding-inline:10px}
+.memocard{background:var(--card-2);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.memocard .notes{background:var(--card)}
+.memocard .inp{background:var(--card)}
+.tyrow{display:flex;gap:8px}
+.tyre-b{border:0;background:none;padding:2px;border-radius:50%}
+.tyre-i{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#16181E;border:5px solid var(--tc);color:var(--tc);font:800 15px var(--display);transition:transform .2s}
+.tyre-b[aria-pressed="false"] .tyre-i{opacity:.35}
+.tyre-b[aria-pressed="true"] .tyre-i{transform:scale(1.12)}
+.tygrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tygrid .lbl2{font-size:10px}

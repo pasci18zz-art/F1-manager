@@ -505,6 +505,24 @@ table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))
 .calrow{gap:6px}
 .calrow .inp.fl{width:46px;font-size:18px}
 .calrow .calno{width:18px}
+
+/* Kalender: ausgegraute Strecken */
+.calrow.off{opacity:.45}
+.calrow.off.dragging{opacity:1}
+.caldiv{font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;padding:12px 0 4px;border-top:2px dashed var(--line-2);margin-top:6px}
+/* Bemerkungen */
+.memoseg{overflow-x:auto;scrollbar-width:none}
+.memoseg button{white-space:nowrap;min-width:max-content;padding-inline:10px}
+.memocard{background:var(--card-2);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.memocard .notes{background:var(--card)}
+.memocard .inp{background:var(--card)}
+.tyrow{display:flex;gap:8px}
+.tyre-b{border:0;background:none;padding:2px;border-radius:50%}
+.tyre-i{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#16181E;border:5px solid var(--tc);color:var(--tc);font:800 15px var(--display);transition:transform .2s}
+.tyre-b[aria-pressed="false"] .tyre-i{opacity:.35}
+.tyre-b[aria-pressed="true"] .tyre-i{transform:scale(1.12)}
+.tygrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tygrid .lbl2{font-size:10px}
 </style>
 <div class="app">
   <header class="top" id="top">
@@ -619,7 +637,19 @@ var IC = {
 };
 
 /* ================= Datenmodell (kompatibel zur alten HTML-Datei) ================= */
-function blankSession(){ return {q:nulls(), sq:nulls(), s:nulls(), r:nulls(), fls:null, flr:null, notes:"", wx:{}}; }
+function blankSession(){ return {q:nulls(), sq:nulls(), s:nulls(), r:nulls(), fls:null, flr:null, notes:"", wx:{}, memo:blankMemo()}; }
+function blankMemo(){ return {sq:"", s:"", q:"", r:"", drv:[], tyres:[]}; }
+var TYRES=[["S","Soft","#E8002D"],["M","Medium","#F2C200"],["H","Hard","#E9E9EC"],["I","Intermediate","#2FB14C"],["W","Regen","#2E7CF6"]];
+function intOrNull(v, lo, hi){ v=parseInt(v,10); return (isFinite(v) && v>=lo && v<=hi) ? v : null; }
+function normMemo(m){
+  var o=blankMemo(); if(!m || typeof m!=="object") return o;
+  ["sq","s","q","r"].forEach(function(k){ if(typeof m[k]==="string") o[k]=m[k].slice(0,4000); });
+  if(Array.isArray(m.drv)) o.drv=m.drv.slice(0,60).map(function(x){ return {d:intOrNull(x && x.d,0,MAXD-1), text:(x && typeof x.text==="string") ? x.text.slice(0,2000) : ""}; });
+  if(Array.isArray(m.tyres)) o.tyres=m.tyres.slice(0,120).map(function(x){ x=x||{};
+    return {d:intOrNull(x.d,0,MAXD-1), sess:["sq","s","q","r"].indexOf(x.sess)>=0 ? x.sess : "r", c:TYRES.some(function(t){ return t[0]===x.c; }) ? x.c : "M",
+      laps:intOrNull(x.laps,0,999), pit:intOrNull(x.pit,0,999), wear:intOrNull(x.wear,0,100)}; });
+  return o;
+}
 var WX=[
   ["sun","Sonnig",'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>'],
   ["mixed","Wechselhaft",'<path d="M8 3.5v1.5M3.5 8H5M4.8 4.8l1 1M12 6.5a4 4 0 0 0-6.6 4"/><path d="M9 20h8.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.6 1.4A2.8 2.8 0 0 0 9 20z"/>'],
@@ -675,7 +705,7 @@ function freshSeason(name, drivers, teams, dTeam, races, sprints, mode, nd){
   }
   var maxN=0;
   rs.forEach(function(r){ var m=/^r(\d+)$/.exec(r.id); if(m && +m[1]>maxN) maxN=+m[1]; });
-  return {id:uid("s"), name:name||"Saison 1", mode:mode==="f1" ? "f1" : "f2", nd:normNd(nd),
+  return {id:uid("s"), name:name||"Saison 1", mode:mode==="f1" ? "f1" : "f2", nd:normNd(nd), spare:[],
           drivers:d, teams:t, dTeam:dt, races:rs, sprints:sp, res:res, power:{}, nextId:maxN+1};
 }
 var FLAGRE = /^\s*((?:[\u{1F1E6}-\u{1F1FF}]{2})|(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}][\u{FE0F}\u{200D}]?)+)\s*/u;
@@ -724,8 +754,17 @@ function normSeason(x, idx){
     }
     out.nextId=Math.max(maxN+1, typeof x.nextId==="number" ? x.nextId : 0);
   }
-  if(x.res) for(i=0;i<out.races.length;i++){
-    var rid=out.races[i].id, src=x.res[rid];
+  out.spare=[];
+  if(Array.isArray(x.spare)) x.spare.forEach(function(R,i){
+    if(!R || typeof R!=="object") return;
+    var id=(typeof R.id==="string" && R.id && !out.res[R.id]) ? R.id : ("r"+(out.nextId++));
+    out.spare.push({id:id, flag:typeof R.flag==="string" ? R.flag : "", name:typeof R.name==="string" ? R.name : "Strecke"});
+    out.res[id]=blankSession(); out.sprints[id]=!!(x.sprints && x.sprints[id]);
+    var m2=/^r(\d+)$/.exec(id); if(m2 && +m2[1]>=out.nextId) out.nextId=+m2[1]+1;
+  });
+  var allR=out.races.concat(out.spare);
+  if(x.res) for(i=0;i<allR.length;i++){
+    var rid=allR[i].id, src=x.res[rid];
     if(!src) continue;
     ["q","sq","s","r"].forEach(function(k){
       if(Array.isArray(src[k])) for(j=0;j<MAXD;j++) out.res[rid][k][j]=cleanVal(src[k][j]);
@@ -733,11 +772,12 @@ function normSeason(x, idx){
     if(src.wx && typeof src.wx==="object") ["q","sq","s","r"].forEach(function(k){ var w=normWx(src.wx[k]); if(w) out.res[rid].wx[k]=w; });
     if(typeof src.notes==="string") out.res[rid].notes=src.notes.slice(0,4000);
     else if(typeof src.note==="string") out.res[rid].notes=src.note.slice(0,4000);
+    out.res[rid].memo=normMemo(src.memo);
     if(typeof src.fls==="number" && src.fls>=0 && src.fls<MAXD) out.res[rid].fls=src.fls;
     if(typeof src.flr==="number" && src.flr>=0 && src.flr<MAXD) out.res[rid].flr=src.flr;
   }
   out.power={};
-  if(x.power && typeof x.power==="object") out.races.forEach(function(R){
+  if(x.power && typeof x.power==="object") allR.forEach(function(R){
     var a=x.power[R.id];
     if(Array.isArray(a)) out.power[R.id]=out.teams.map(function(_,k){
       var v=a[k]; return (typeof v==="number" && isFinite(v)) ? clamp(Math.round(v),0,100) : null;
@@ -916,6 +956,7 @@ function raceCode(R){
   for(var i=0;i<idx;i++) if(baseCode(S.races[i])===b) n++;
   return n>1 ? b+n : b;
 }
+function anyRace(id){ var i=raceIndex(id); if(i>=0) return S.races[i]; var sp=S.spare||[]; for(var j=0;j<sp.length;j++) if(sp[j].id===id) return sp[j]; return null; }
 function raceIndex(id){ for(var i=0;i<S.races.length;i++) if(S.races[i].id===id) return i; return -1; }
 function sessionsOf(id){ return S.sprints[id] ? ["sq","s","q","r"] : ["q","r"]; }
 function weekendPts(id, d){
@@ -1763,6 +1804,41 @@ function wxPicker(R, k){
     }).join("")+'</div>';
   }).join("")+'</div><span class="small muted">Anfang füllt Mitte und Ende mit, solange die noch leer sind.</span></div>';
 }
+/* Bemerkungen: allgemein, je Session, zu einzelnen Fahrern und Reifen */
+function memoOf(){ var R=S.res[ui.race]; if(!R.memo) R.memo=blankMemo(); return R.memo; }
+function drvSelect(cur, attrs, emptyLabel){
+  return '<select class="inp" '+attrs+'><option value="">'+esc(emptyLabel)+'</option>'+S.drivers.slice(0,ND).map(function(dv,d){
+    return '<option value="'+d+'"'+(cur===d ? ' selected' : '')+'>'+(dv.num ? '#'+esc(dv.num)+' ' : '')+esc(dv.name)+'</option>'; }).join("")+'</select>';
+}
+function memoBlock(id){
+  var R=S.res[id], M=R.memo||blankMemo(), sess=sessionsOf(id);
+  var tabs=[["gen","Allgemein"]].concat(sess.map(function(k){ return [k, SESSSHORT[k]]; })).concat([["drv","Fahrer"],["ty","Reifen"]]);
+  if(!tabs.some(function(t){ return t[0]===ui.memoTab; })) ui.memoTab="gen";
+  var t=ui.memoTab, h='<div class="field"><span class="lbl2">Bemerkungen</span><div class="chips memotabs" role="group" aria-label="Bemerkungen zu">'+tabs.map(function(x){ return '<button type="button" class="chip" data-act="memo-tab" data-v="'+x[0]+'" aria-pressed="'+(x[0]===t)+'">'+esc(x[1])+'</button>'; }).join("")+'</div>';
+  if(t==="gen") h+='<textarea class="notes" id="memo-gen-'+esc(id)+'" data-inp="memo-gen" placeholder="z. B. Safety-Car, Strafen, Strategie">'+esc(R.notes||"")+'</textarea>';
+  else if(t==="drv"){
+    h+=M.drv.map(function(x,i){
+      return '<div class="memocard"><div class="row" style="flex-wrap:nowrap">'+drvSelect(x.d, 'data-chg="memo-drv-d" data-i="'+i+'" aria-label="Fahrer"', "\u2013 Fahrer wählen \u2013")+
+        '<button type="button" class="iconbtn" data-act="memo-del" data-l="drv" data-i="'+i+'" aria-label="Notiz löschen">'+ico(IC.trash,16)+'</button></div>'+
+        '<textarea class="notes" data-inp="memo-drv-t" data-i="'+i+'" placeholder="Was war bei diesem Fahrer los?">'+esc(x.text)+'</textarea></div>';
+    }).join("")+'<button type="button" class="btn sm" data-act="memo-add" data-l="drv">'+ico(IC.plus,16,2.4)+' Notiz zu einem Fahrer</button>';
+  }
+  else if(t==="ty"){
+    h+=M.tyres.map(function(x,i){
+      return '<div class="memocard"><div class="row" style="flex-wrap:nowrap">'+drvSelect(x.d, 'data-chg="memo-ty-d" data-i="'+i+'" aria-label="Fahrer"', "Ich / allgemein")+
+        '<select class="inp" style="width:auto" data-chg="memo-ty-s" data-i="'+i+'" aria-label="Session">'+sess.map(function(k){ return '<option value="'+k+'"'+(x.sess===k ? ' selected' : '')+'>'+esc(SESSSHORT[k])+'</option>'; }).join("")+'</select>'+
+        '<button type="button" class="iconbtn" data-act="memo-del" data-l="tyres" data-i="'+i+'" aria-label="Reifen löschen">'+ico(IC.trash,16)+'</button></div>'+
+        '<div class="tyrow">'+TYRES.map(function(c){ return '<button type="button" class="tyre-b" data-act="memo-ty-c" data-i="'+i+'" data-v="'+c[0]+'" aria-pressed="'+(x.c===c[0])+'" title="'+c[1]+'" aria-label="'+c[1]+'"><span class="tyre-i" style="--tc:'+c[2]+'">'+c[0]+'</span></button>'; }).join("")+'</div>'+
+        '<div class="tygrid">'+
+          '<label class="field"><span class="lbl2">Runden gefahren</span><input class="inp" type="number" inputmode="numeric" min="0" data-inp="memo-ty" data-f="laps" data-i="'+i+'" value="'+(x.laps==null ? '' : x.laps)+'"></label>'+
+          '<label class="field"><span class="lbl2">Abgegeben in Runde</span><input class="inp" type="number" inputmode="numeric" min="0" data-inp="memo-ty" data-f="pit" data-i="'+i+'" value="'+(x.pit==null ? '' : x.pit)+'"></label>'+
+          '<label class="field"><span class="lbl2">Höchster Verschleiß %</span><input class="inp" type="number" inputmode="numeric" min="0" max="100" data-inp="memo-ty" data-f="wear" data-i="'+i+'" value="'+(x.wear==null ? '' : x.wear)+'"></label>'+
+        '</div></div>';
+    }).join("")+'<button type="button" class="btn sm" data-act="memo-add" data-l="tyres">'+ico(IC.plus,16,2.4)+' Reifen hinzufügen</button>';
+  }
+  else h+='<textarea class="notes" data-inp="memo" data-k="'+t+'" placeholder="Notizen zu '+esc(SESSLBL[t])+'">'+esc(M[t]||"")+'</textarea>';
+  return h+'</div>';
+}
 function powerCard(id, ri){
   var lp=latestPower(ri);
   if(!lp) return '';
@@ -1783,7 +1859,7 @@ function entryCard(id){
     '<div class="reveal'+(open ? ' open' : '')+'"><div><div class="reveal-inner">'+
       '<button type="button" class="bigact photo" data-act="entry-open"><span class="ic">'+ico(IC.pen,22)+'</span><span><span class="tt">'+esc(SESSLBL[ui.sess])+' eintragen</span><br><span class="ds">Erste Buchstaben tippen, auf Weiter \u2013 fertig</span></span></button>'+
       '<button type="button" class="btn" data-act="power-hand">'+ico(IC.gauge,18)+' Autostärke vor diesem GP</button>'+
-      '<div class="field"><label for="notes-'+esc(id)+'">Notizen zum Wochenende</label><textarea class="notes" id="notes-'+esc(id)+'" data-inp="notes" placeholder="z. B. Safety-Car, Strafen, Wetter">'+esc(R.notes||"")+'</textarea></div>'+
+      memoBlock(id)+
       '<button type="button" class="btn danger sm" data-act="race-clear" style="align-self:flex-start">Dieses Wochenende leeren</button>'+
     '</div></div></div></div>';
 }
@@ -2090,9 +2166,10 @@ function vSettings(){
     '<span class="stepper"><button type="button" class="iconbtn" data-act="race-count" data-v="-1" aria-label="Eine Strecke weniger"'+(S.races.length<=1 ? ' disabled' : '')+'>'+ico('<path d="M5 12h14"/>',18,2.6)+'</button>'+
     '<input class="inp n" id="race-count" type="number" inputmode="numeric" min="1" max="40" value="'+S.races.length+'" data-chg="race-count" aria-label="Anzahl Strecken">'+
     '<button type="button" class="iconbtn" data-act="race-count" data-v="1" aria-label="Eine Strecke mehr">'+ico(IC.plus,18,2.6)+'</button></span></div>'+
-    '<div class="calsort" id="calsort">'+S.races.map(function(R,i){
-    return '<div class="srow calrow" data-r="'+esc(R.id)+'"><span class="grip" aria-label="Ziehen zum Verschieben">'+ico('<circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/>',18,2)+'</span>'+
-      '<span class="calno num">'+(i+1)+'</span>'+
+    '<div class="calsort" id="calsort">'+S.races.concat(S.spare||[]).map(function(R,i){
+    var off=i>=S.races.length;
+    return (i===S.races.length ? '<div class="caldiv">Nicht im Kalender \u2013 hochziehen oder Anzahl erhöhen</div>' : '')+'<div class="srow calrow'+(off ? ' off' : '')+'" data-r="'+esc(R.id)+'"><span class="grip" aria-label="Ziehen zum Verschieben">'+ico('<circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/>',18,2)+'</span>'+
+      '<span class="calno num">'+(off ? '\u2013' : (i+1))+'</span>'+
       '<input class="inp fl" id="rflag-'+esc(R.id)+'" data-inp="rflag" data-r="'+esc(R.id)+'" value="'+esc(R.flag)+'" aria-label="Flagge">'+
       '<input class="inp grow" id="rname-'+esc(R.id)+'" data-inp="rname" data-r="'+esc(R.id)+'" value="'+esc(R.name)+'" aria-label="Streckenname">'+
       '<button type="button" class="switch" role="switch" data-act="race-sprint" data-r="'+esc(R.id)+'" aria-checked="'+(!!S.sprints[R.id])+'" aria-label="Sprint in '+esc(R.name)+'" title="Sprint"></button>'+
@@ -2133,23 +2210,23 @@ function dataImportBlock(onb){
 /* Anzahl der Strecken: hinten anfügen oder hinten wegnehmen */
 function setRaceCount(n){
   n=clamp(n||1, 1, 40);
+  S.spare=S.spare||[];
   if(n===S.races.length) return refresh();
   if(n>S.races.length){
     while(S.races.length<n){
+      if(S.spare.length){ S.races.push(S.spare.shift()); continue; }
       var nid="r"+(S.nextId++); while(S.res[nid]) nid="r"+(S.nextId++);
-      var def=DEF_RACES[S.races.length] || ["", "Rennen "+(S.races.length+1)];
-      S.races.push({id:nid, flag:S.races.length<DEF_RACES.length ? def[0] : "", name:S.races.length<DEF_RACES.length ? def[1] : "Rennen "+(S.races.length+1)});
+      var j=S.races.length, def=DEF_RACES[j];
+      S.races.push({id:nid, flag:def ? def[0] : "", name:def ? def[1] : "Rennen "+(j+1)});
       S.res[nid]=blankSession(); S.sprints[nid]=false;
     }
-    touch(); refresh(); return;
+  } else {
+    // Überzählige Strecken bleiben ausgegraut in der Liste, mit allem, was eingetragen ist
+    S.spare=S.races.slice(n).concat(S.spare);
+    S.races=S.races.slice(0,n);
+    if(ui.race && raceIndex(ui.race)<0) ui.race=null;
   }
-  var cut=S.races.slice(n), withRes=cut.filter(function(R){ return raceDone(R.id); });
-  function doCut(){
-    cut.forEach(function(R){ delete S.res[R.id]; delete S.sprints[R.id]; delete S.power[R.id]; if(ui.race===R.id) ui.race=null; });
-    S.races=S.races.slice(0,n); touch(); refresh();
-  }
-  if(withRes.length) askConfirm({title:"Strecken entfernen?", text:"Die letzten "+cut.length+" Strecken werden entfernt, darunter "+withRes.map(function(R){ return "<b>"+esc(R.name)+"</b>"; }).join(", ")+" mit eingetragenen Ergebnissen.", ok:"Entfernen", danger:true, onOk:doCut});
-  else doCut();
+  touch(); refresh();
 }
 /* Strecken per langem Drücken und Ziehen sortieren */
 (function(){
@@ -2182,8 +2259,10 @@ function setRaceCount(n){
     var d=drag; drag=null;
     document.getElementById("calsort").classList.remove("sorting");
     if(d.to!==d.from){
-      var R=S.races.splice(d.from,1)[0]; S.races.splice(d.to,0,R);
-      touch(); refresh(); toast(R.name+" ist jetzt Rennen "+(d.to+1));
+      var n=S.races.length, all=S.races.concat(S.spare||[]), R=all.splice(d.from,1)[0]; all.splice(d.to,0,R);
+      S.races=all.slice(0,n); S.spare=all.slice(n);
+      if(ui.race && raceIndex(ui.race)<0) ui.race=null;
+      touch(); refresh(); toast(d.to<n ? R.name+" ist jetzt Rennen "+(d.to+1) : R.name+" ist nicht im Kalender");
     } else { d.rows.forEach(function(r){ r.style.transform=""; }); d.row.classList.remove("dragging"); }
   }
   document.addEventListener("pointerdown", function(e){
@@ -2668,7 +2747,7 @@ document.addEventListener("click", function(e){
     case "entry-open": openEntry(ui.sess); break;
     case "power-hand": openPower(el.getAttribute("data-r")); break;
     case "race-clear": askConfirm({title:"Wochenende leeren?", text:"Alle Ergebnisse von <b>"+esc(S.races[raceIndex(ui.race)].name)+"</b> werden gelöscht. Autostärke und Notizen bleiben.", ok:"Leeren", danger:true,
-      onOk:function(){ var R=S.res[ui.race], n=R.notes; S.res[ui.race]=blankSession(); S.res[ui.race].notes=n; touch(); refresh(); toast("Geleert"); }}); break;
+      onOk:function(){ var R=S.res[ui.race], n=R.notes, mm=R.memo; S.res[ui.race]=blankSession(); S.res[ui.race].notes=n; S.res[ui.race].memo=mm||blankMemo(); touch(); refresh(); toast("Geleert"); }}); break;
     case "stat-scope": ui.statScope=v; saveUi(); refresh(); break;
     case "stat-key": ui.statKey=v; saveUi(); refresh(); break;
     case "pred-use": { var sid=el.getAttribute("data-s"), se=findSeason(SV,sid); if(se){ APP.prefs.predUse[sid]=!predUse(se); touch(); refresh(); } break; }
@@ -2684,6 +2763,7 @@ document.addEventListener("click", function(e){
       APP.saves.push(nsv); APP.curSave=nsv.id; ui.race=null; ui.hidden={}; flush(); closeSheet(); ui.view="set"; saveUi(); render(true); toast("Spielstand angelegt"); break; }
     case "new-season": {
       var base=S, ns=freshSeason("Saison "+(SV.seasons.length+1), base.drivers, base.teams, base.dTeam, base.races, base.sprints, base.mode, base.nd);
+      (base.spare||[]).forEach(function(R){ var nid="r"+(ns.nextId++); ns.spare.push({id:nid, flag:R.flag, name:R.name}); ns.res[nid]=blankSession(); ns.sprints[nid]=!!base.sprints[R.id]; });
       SV.seasons.push(ns); SV.cur=ns.id; ui.race=null; ui.hidden={}; touch(); if(SH) closeSheet(); ui.view="set"; saveUi(); render(true);
       toast("Neue Saison angelegt – Fahrerwechsel hier eintragen"); break; }
     case "confirm-ok": { var o=SH.o; closeSheet(); o.onOk(); break; }
@@ -2697,6 +2777,13 @@ document.addEventListener("click", function(e){
       if(w.a||w.m||w.e) RW.wx[SH.sess]=w; else delete RW.wx[SH.sess];
       touch(); SH.keepScroll=true; renderSheet(); break; }
     case "e-clearsess": { var s0=SH.sess; S.res[ui.race][s0]=nulls(); if(s0==="r") S.res[ui.race].flr=null; if(s0==="s") S.res[ui.race].fls=null; touch(); renderSheet(); break; }
+    case "memo-tab": ui.memoTab=v; refresh(); break;
+    case "memo-add": { var ML=memoOf(), l=el.getAttribute("data-l");
+      if(l==="drv") ML.drv.push({d:null, text:""});
+      else { var last=ML.tyres[ML.tyres.length-1]; ML.tyres.push({d:last ? last.d : null, sess:last ? last.sess : (ui.sess||"r"), c:"M", laps:null, pit:null, wear:null}); }
+      touch(); refresh(); break; }
+    case "memo-del": { var MD=memoOf(); MD[el.getAttribute("data-l")].splice(+el.getAttribute("data-i"),1); touch(); refresh(); break; }
+    case "memo-ty-c": { var MC=memoOf().tyres[+el.getAttribute("data-i")]; if(MC){ MC.c=v; touch(); refresh(); } break; }
     case "e-done": { var sd=SH.sess; ui.sess=sd; closeSheet(); if(sd==="r" && S.res[ui.race].r.indexOf(1)>=0) pendingConfetti=true; refresh(); toast("Gespeichert"); break; }
     /* Foto */
     /* Autostärke */
@@ -2727,7 +2814,9 @@ document.addEventListener("click", function(e){
     case "race-count": setRaceCount(S.races.length+(+v)); break;
     case "race-add": { var nid="r"+(S.nextId++); while(S.res[nid]) nid="r"+(S.nextId++); S.races.push({id:nid, flag:"", name:"Rennen "+(S.races.length+1)}); S.res[nid]=blankSession(); S.sprints[nid]=false; touch(); refresh(); break; }
     case "race-del": {
-      var did=el.getAttribute("data-r"), dR=S.races[raceIndex(did)];
+      var did=el.getAttribute("data-r"), spI=(S.spare||[]).findIndex(function(x){ return x.id===did; });
+      if(spI>=0){ var sR=S.spare[spI]; askConfirm({title:"Strecke löschen?", text:"<b>"+esc(sR.name)+"</b> wird endgültig aus der Liste entfernt.", ok:"Löschen", danger:true, onOk:function(){ S.spare.splice(S.spare.indexOf(sR),1); delete S.res[did]; delete S.sprints[did]; delete S.power[did]; touch(); refresh(); }}); break; }
+      var dR=S.races[raceIndex(did)];
       askConfirm({title:"Rennen löschen?", text:"<b>"+esc(dR.name)+"</b> wird mit allen Ergebnissen aus dem Kalender entfernt.", ok:"Löschen", danger:true, onOk:function(){
         S.races.splice(raceIndex(did),1); delete S.res[did]; delete S.sprints[did]; delete S.power[did]; if(ui.race===did) ui.race=null; touch(); refresh(); }});
       break; }
@@ -2778,8 +2867,12 @@ document.addEventListener("input", function(e){
     case "dname": S.drivers[d].name=v; touch(); break;
     case "tname": S.teams[t].name=v; touch(); break;
     case "tshort": S.teams[t].short=v.trim().toUpperCase().slice(0,4); touch(); break;
-    case "rflag": { var R=S.races[raceIndex(r)]; if(R){ R.flag=v.trim().slice(0,8); touch(); } break; }
-    case "rname": { var R2=S.races[raceIndex(r)]; if(R2){ R2.name=v; touch(); } break; }
+    case "rflag": { var R=anyRace(r); if(R){ R.flag=v.trim().slice(0,8); touch(); } break; }
+    case "rname": { var R2=anyRace(r); if(R2){ R2.name=v; touch(); } break; }
+    case "memo": { var M=memoOf(); M[el.getAttribute("data-k")]=v.slice(0,4000); touch(); break; }
+    case "memo-gen": if(S.res[ui.race]){ S.res[ui.race].notes=v.slice(0,4000); touch(); } break;
+    case "memo-drv-t": { var Md=memoOf().drv[+el.getAttribute("data-i")]; if(Md){ Md.text=v.slice(0,2000); touch(); } break; }
+    case "memo-ty": { var Mt=memoOf().tyres[+el.getAttribute("data-i")], f=el.getAttribute("data-f"); if(Mt){ Mt[f]=intOrNull(v,0,f==="wear" ? 100 : 999); touch(); } break; }
     case "cropz": if(SH && SH.type==="crop"){ SH.zoom=(+v)/100; cropRedraw(); } break;
     case "notes": if(S.res[ui.race]){ S.res[ui.race].notes=v.slice(0,4000); touch(); } break;
     case "predw": APP.prefs.predW=clamp((+v)/100,0,1); var l=$("predw-l"); if(l) l.textContent="Auto "+Math.round(+v)+" %"; break;
@@ -2795,6 +2888,9 @@ document.addEventListener("change", function(e){
   var v=el.value;
   switch(k){
     case "race-count": setRaceCount(parseInt(v,10)); break;
+    case "memo-drv-d": { var X=memoOf().drv[+el.getAttribute("data-i")]; if(X){ X.d= v==="" ? null : +v; touch(); } break; }
+    case "memo-ty-d": { var Y=memoOf().tyres[+el.getAttribute("data-i")]; if(Y){ Y.d= v==="" ? null : +v; touch(); } break; }
+    case "memo-ty-s": { var Z=memoOf().tyres[+el.getAttribute("data-i")]; if(Z){ Z.sess=v; touch(); } break; }
     case "dteam": S.dTeam[+el.getAttribute("data-d")]=+v; touch(); refresh(); break;
     case "tcolor": S.teams[+el.getAttribute("data-k")].color=hexc(v, "#888888"); touch(); refresh(); break;
     case "e-fl": { var fk=SH.sess==="r" ? "flr" : "fls"; S.res[ui.race][fk]= v==="" ? null : +v; touch(); break; }
