@@ -414,3 +414,47 @@ html.nomo *, html.nomo *::before, html.nomo *::after{animation:none!important;tr
 .wxrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
 .wxs{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--ink-2)}
 .chip.wxchip[aria-pressed="true"]{background:var(--card-2);border-color:var(--accent);color:var(--ink)}
+
+/* Wetter in drei Phasen */
+.wxline{flex-wrap:wrap;gap:6px 14px}
+.wxph{display:inline-flex;align-items:center;gap:5px}
+.wxk{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
+.wxgrid{display:grid;grid-template-columns:62px minmax(0,1fr);gap:6px 8px;align-items:center}
+.wxopts{display:flex;gap:6px;flex-wrap:wrap}
+.wxbtn{width:44px;height:40px;border-radius:12px;border:1px solid var(--line-2);background:var(--card);display:inline-flex;align-items:center;justify-content:center;transition:transform .2s,background .2s,border-color .2s}
+.wxbtn[aria-pressed="true"]{background:var(--card-2);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+
+/* Logos ohne Kasten: freigestellte Logos stehen direkt auf dem Hintergrund */
+.logo.img{background:transparent;border:0}
+
+/* Zuschneiden */
+.cropbox{width:min(100%,320px);aspect-ratio:1;margin:0 auto;border-radius:22px;overflow:hidden;border:2px solid var(--accent);
+  background-color:var(--card);background-image:linear-gradient(45deg,var(--card-2) 25%,transparent 25%,transparent 75%,var(--card-2) 75%),linear-gradient(45deg,var(--card-2) 25%,transparent 25%,transparent 75%,var(--card-2) 75%);
+  background-size:20px 20px;background-position:0 0,10px 10px}
+.cropbox canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+
+/* Leiste unten: feste Position, Glas, gleitende Markierung wie bei iOS */
+:root{--glass2:rgba(24,26,34,.5)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--glass2:rgba(255,255,255,.55)}}
+:root[data-theme="light"]{--glass2:rgba(255,255,255,.55)}
+:root[data-theme="dark"]{--glass2:rgba(24,26,34,.5)}
+.nav{gap:0;padding:0 6px;height:60px;border-radius:30px;background:var(--glass2);
+  backdrop-filter:blur(28px) saturate(190%);-webkit-backdrop-filter:blur(28px) saturate(190%);
+  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.12)}
+.nav button,.nav button[aria-current="page"]{width:54px;min-width:54px;height:48px;padding:0;background:none;position:relative;z-index:1;border-radius:24px;transition:color .35s,transform .2s}
+.nav button[aria-current="page"]{color:var(--accent-ink)}
+.nav button .lb{display:none}
+.nav .ind{position:absolute;left:6px;top:5px;width:54px;height:48px;border-radius:24px;background:var(--accent);z-index:0;
+  transform:translateX(calc(var(--ni,0) * 54px));transition:transform .55s cubic-bezier(.32,1.35,.45,1);
+  box-shadow:0 6px 16px rgba(0,0,0,.25)}
+.nav .ind.hop{animation:hop .55s cubic-bezier(.3,.9,.4,1)}
+@keyframes hop{0%{scale:1 1}35%{scale:1.22 .86}70%{scale:.96 1.04}100%{scale:1 1}}
+
+/* Oben: verwischtes Glas statt harter Kante, nichts läuft sichtbar durch die Statusleiste */
+html,body{overflow-x:clip}
+body::before{background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(18px) saturate(170%);-webkit-backdrop-filter:blur(18px) saturate(170%)}
+.top{background:transparent}
+.top::before{content:"";position:absolute;inset:0 -50vw -14px;z-index:-1;pointer-events:none;
+  background:linear-gradient(to bottom,color-mix(in srgb,var(--bg) 78%,transparent) 0%,color-mix(in srgb,var(--bg) 70%,transparent) 75%,transparent 100%);
+  backdrop-filter:blur(18px) saturate(170%);-webkit-backdrop-filter:blur(18px) saturate(170%);
+  -webkit-mask-image:linear-gradient(to bottom,#000 78%,transparent);mask-image:linear-gradient(to bottom,#000 78%,transparent)}
