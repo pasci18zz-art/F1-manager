@@ -23,12 +23,27 @@ HEAD='<title>F1 Manager</title>
   printf '</script>\n'
 } > dist/f1-manager.html
 
+# App: Schriften lokal mitliefern, damit die App auch ohne Internet richtig aussieht
+mkdir -p www/fonts
+FONTCSS=""
+for spec in "barlow-condensed:Barlow Condensed:600 700 800" "barlow-semi-condensed:Barlow Semi Condensed:400 500 600 700" "ibm-plex-mono:IBM Plex Mono:500 700"; do
+  pkg=${spec%%:*}; rest=${spec#*:}; fam=${rest%%:*}; weights=${rest#*:}
+  for w in $weights; do
+    f="$pkg-latin-$w-normal.woff2"
+    cp "node_modules/@fontsource/$pkg/files/$f" "www/fonts/$f"
+    FONTCSS="$FONTCSS@font-face{font-family:\"$fam\";font-style:normal;font-weight:$w;font-display:swap;src:url(fonts/$f) format(\"woff2\")}
+"
+  done
+done
+APPHEAD=$(printf '%s\n' "$HEAD" | grep -v 'fonts.googleapis.com\|fonts.gstatic.com')
+
 # App: Claude-SDK und Capacitor-Plugins als eine Datei
 npx esbuild src/native.js --bundle --minify --format=iife --platform=browser --target=chrome100 --log-level=warning --outfile=www/native.js
 {
   printf '<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n'
   printf '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
-  printf '%s\n<style>\n' "$HEAD"
+  printf '%s\n<style>\n' "$APPHEAD"
+  printf '%s' "$FONTCSS"
   cat src/style.css
   # Ohne claude.ai-Rahmen: Abstand zu Statusleiste und Gestenleiste selbst setzen
   printf 'body{padding-top:var(--sat)}\n.app{padding-bottom:calc(120px + var(--sab))}\nhtml{background:var(--bg)}\n'
