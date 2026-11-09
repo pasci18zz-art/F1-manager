@@ -73,10 +73,15 @@ jobs:
 
       - name: APK bauen
         working-directory: android
-        # Bei einem Netzwerkfehler (z. B. Download von Gradle) einmal neu versuchen
+        # Bei Netzwerkfehlern (z. B. Download von Gradle) bis zu fünfmal mit wachsenden Pausen versuchen
         run: |
           ARGS="assembleRelease --no-daemon -PappVersionCode=${{ github.run_number }} -PappVersionName=1.${{ github.run_number }}"
-          ./gradlew $ARGS || { echo "Erster Versuch fehlgeschlagen, neuer Versuch in 20 Sekunden"; sleep 20; ./gradlew $ARGS; }
+          for i in 1 2 3 4 5; do
+            if ./gradlew $ARGS; then exit 0; fi
+            echo "Versuch $i fehlgeschlagen, warte $((i*30)) Sekunden"
+            sleep $((i*30))
+          done
+          exit 1
 
       - name: APK umbenennen
         run: cp android/app/build/outputs/apk/release/app-release.apk F1-Manager.apk
