@@ -41,6 +41,11 @@ function ico(p, size, sw){
   size = size || 20;
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+(sw||2)+'" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+p+'</svg>';
 }
+var APP_MARK='<svg viewBox="0 0 108 108" aria-hidden="true"><rect width="108" height="108" rx="26" fill="#14161D"/><g transform="translate(54 54) scale(.95) translate(-50 -54.5)">'+
+  '<defs><pattern id="chk" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#F2F3F7"/><rect width="5" height="5" fill="#14161D"/><rect x="5" y="5" width="5" height="5" fill="#14161D"/></pattern></defs>'+
+  '<path d="M46 31c8-5 16 3 24-1s10-3 12-2v25c-4-1-6 0-12 2s-16-4-24 1z" fill="url(#chk)" stroke="#F2F3F7" stroke-width="2" stroke-linejoin="round"/>'+
+  '<path d="M46 29v51" stroke="#F2F3F7" stroke-width="4.5" stroke-linecap="round"/>'+
+  '<path d="M22 42h16M17 51h21M24 60h14" stroke="#FF5A36" stroke-width="4.5" stroke-linecap="round"/></g></svg>';
 var IC = {
   standings:'<path d="M4 20v-7h5v7M9 20V5h6v15M15 20v-5h5v5"/>',
   race:'<path d="M5 21V4M5 4h12l-2.5 4L17 12H5"/>',
@@ -212,7 +217,18 @@ function normApp(x){
 /* ================= Zustand ================= */
 var APP = normApp(null), SV = null, S = null;
 var ui = {view:"standings", wMode:"d", race:null, sess:"r", statKey:"pts", statScope:"season", hidden:{}, entryOpen:false};
-var CAP = {images:false, maxImgs:1, checked:false};
+var CAP = {sample:false, maxImgs:1, checked:false};
+var N = window.F1N || null, NATIVE = !!(N && N.native);
+var KEY_API = "f1m-apikey", apiKeyCache = null;
+function getApiKey(){ if(apiKeyCache===null){ try{ apiKeyCache=localStorage.getItem(KEY_API)||""; }catch(e){ apiKeyCache=""; } } return apiKeyCache; }
+function setApiKey(v){
+  apiKeyCache=v||"";
+  try{ if(v) localStorage.setItem(KEY_API, v); else localStorage.removeItem(KEY_API); }catch(e){}
+  if(NATIVE){ (v ? N.Preferences.set({key:KEY_API, value:v}) : N.Preferences.remove({key:KEY_API})).catch(function(){}); }
+}
+function apiReady(){ return !!(N && N.Anthropic && getApiKey()); }
+function photoReady(){ return CAP.sample || apiReady(); }
+function photoMax(){ return CAP.sample ? (CAP.maxImgs||1) : 4; }
 
 function findSave(id){ for(var i=0;i<APP.saves.length;i++) if(APP.saves[i].id===id) return APP.saves[i]; return null; }
 function findSeason(sv, id){ for(var i=0;i<sv.seasons.length;i++) if(sv.seasons[i].id===id) return sv.seasons[i]; return null; }
@@ -247,6 +263,7 @@ function saveLocal(){
     localStorage.setItem(KEY_BAK, blob);
     lastSaved=new Date(); storageOk=true;
   }catch(e){ storageOk=false; }
+  if(NATIVE){ N.Preferences.set({key:KEY, value:blob}).then(function(){ if(!storageOk){ storageOk=true; lastSaved=new Date(); showBanner(); } }).catch(function(){}); }
   showBanner();
 }
 function flush(){ clearTimeout(saveT); saveLocal(); }
@@ -800,10 +817,41 @@ function updateHeader(){
     $("roundinfo").textContent = S.races.length ? (n>=S.races.length ? "Saison beendet" : "Rennen "+n+" / "+S.races.length) : "";
   } else $("roundinfo").textContent="";
 }
+function isDark(){
+  var t=APP.prefs.theme;
+  if(t==="dark") return true;
+  if(t==="light") return false;
+  try{ return window.matchMedia("(prefers-color-scheme: dark)").matches; }catch(e){ return true; }
+}
+var lastBars=null;
 function applyTheme(){
-  var t=APP.prefs.theme, root=document.documentElement;
+  var t=APP.prefs.theme, root=document.documentElement, dark=isDark();
   if(t==="system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", t);
   root.classList.toggle("nomo", !APP.prefs.motion);
+  var mt=document.querySelector('meta[name="theme-color"]'); if(mt) mt.setAttribute("content", dark ? "#0E0F14" : "#ECEEF3");
+  var tb=$("themebtn");
+  if(tb && tb.getAttribute("data-dark")!==String(dark)){
+    tb.setAttribute("data-dark", String(dark));
+    tb.innerHTML = dark ? ico('<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',20,2)
+                        : ico('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',20,2);
+    tb.setAttribute("aria-label", dark ? "Auf hell umschalten" : "Auf dunkel umschalten");
+  }
+  if(NATIVE && lastBars!==dark){
+    lastBars=dark;
+    try{ N.SystemBars.setStyle({style: dark ? N.SystemBarsStyle.Dark : N.SystemBarsStyle.Light}).catch(function(){}); }catch(e){}
+  }
+}
+function reducedMotion(){ try{ return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){ return false; } }
+function switchTheme(next, el){
+  var go2=function(){ APP.prefs.theme=next; touch(); applyTheme(); if(ui.view==="set") refresh(); };
+  if(!document.startViewTransition || !APP.prefs.motion || reducedMotion() || !el){ go2(); return; }
+  var r=el.getBoundingClientRect(), x=r.left+r.width/2, y=r.top+r.height/2;
+  var rad=Math.hypot(Math.max(x, innerWidth-x), Math.max(y, innerHeight-y));
+  var vt=document.startViewTransition(go2);
+  vt.ready.then(function(){
+    document.documentElement.animate({clipPath:["circle(0px at "+x+"px "+y+"px)", "circle("+rad+"px at "+x+"px "+y+"px)"]},
+      {duration:600, easing:"cubic-bezier(.3,.8,.2,1)", pseudoElement:"::view-transition-new(root)"});
+  }).catch(function(){});
 }
 
 /* ================= Ansichten ================= */
@@ -1093,9 +1141,9 @@ function powerCard(id, ri){
 }
 function entryCard(id){
   var R=S.res[id], open=ui.entryOpen;
-  var photoBtn = CAP.images ?
+  var photoBtn = photoReady() ?
     '<button type="button" class="bigact photo" data-act="photo-open" data-kind="'+ui.sess+'"><span class="ic">'+ico(IC.camera,24)+'</span><span><span class="tt">Ergebnis-Foto auslesen</span><br><span class="ds">Claude liest die Plätze vom Bildschirm ab</span></span></button>' :
-    '<div class="bigact hand" style="opacity:.75"><span class="ic">'+ico(IC.camera,24)+'</span><span><span class="tt">Foto auslesen</span><br><span class="ds">'+(CAP.checked ? 'Funktioniert nur, wenn du die App auf claude.ai öffnest.' : 'Wird geprüft …')+'</span></span></div>';
+    '<button type="button" class="bigact hand" data-act="nav" data-v="set"><span class="ic">'+ico(IC.camera,24)+'</span><span><span class="tt">Foto auslesen einrichten</span><br><span class="ds">'+photoHint()+'</span></span></button>';
   return '<div class="card st" style="--i:4">'+
     '<button type="button" class="collapse" data-act="entry-toggle" aria-expanded="'+open+'">'+
       '<span class="logo" style="--s:40px;border-radius:12px;background:var(--accent-soft);color:var(--accent)">'+ico(IC.pen,20)+'</span>'+
@@ -1104,7 +1152,7 @@ function entryCard(id){
     '<div class="reveal'+(open ? ' open' : '')+'"><div><div class="reveal-inner">'+
       photoBtn+
       '<button type="button" class="bigact hand" data-act="entry-open"><span class="ic">'+ico(IC.pen,22)+'</span><span><span class="tt">Von Hand eintragen</span><br><span class="ds">Platz antippen, Fahrer wählen, weiter geht’s automatisch</span></span></button>'+
-      '<div class="row">'+(CAP.images ? '<button type="button" class="btn grow" data-act="photo-open" data-kind="power">'+ico(IC.camera,18)+' R&D-Foto</button>' : '')+
+      '<div class="row">'+(photoReady() ? '<button type="button" class="btn grow" data-act="photo-open" data-kind="power">'+ico(IC.camera,18)+' R&D-Foto</button>' : '')+
         '<button type="button" class="btn grow" data-act="power-hand">'+ico(IC.gauge,18)+' Autostärke von Hand</button></div>'+
       '<div class="field"><label for="notes-'+esc(id)+'">Notizen zum Wochenende</label><textarea class="notes" id="notes-'+esc(id)+'" data-inp="notes" placeholder="z. B. Safety-Car, Strafen, Wetter">'+esc(R.notes||"")+'</textarea></div>'+
       '<button type="button" class="btn danger sm" data-act="race-clear" style="align-self:flex-start">Dieses Wochenende leeren</button>'+
@@ -1271,10 +1319,10 @@ function vPred(){
 function powerTarget(){ var i=nextRaceIdx(); if(i<0) i=S.races.length-1; return i>=0 ? S.races[i].id : null; }
 function vTeams(){
   var h=[], tgt=powerTarget(), tR=tgt ? S.races[raceIndex(tgt)] : null;
-  if(CAP.images && tR) h.push('<button type="button" class="cta st" style="--i:0" data-act="photo-open" data-kind="power" data-r="'+esc(tgt)+'"><span class="ic">'+ico(IC.camera,26)+'</span>'+
+  if(photoReady() && tR) h.push('<button type="button" class="cta st" style="--i:0" data-act="photo-open" data-kind="power" data-r="'+esc(tgt)+'"><span class="ic">'+ico(IC.camera,26)+'</span>'+
     '<span><span class="tt">R&D-Chart fotografieren</span><br><span class="ds">Claude liest die Teamstärken aus, du prüfst und übernimmst sie · für GP '+esc(tR.name)+'</span></span></button>');
   else if(tR) h.push('<div class="card st" style="--i:0;display:flex;gap:12px;align-items:center"><span class="logo" style="--s:44px;border-radius:13px;background:var(--accent-soft);color:var(--accent)">'+ico(IC.camera,22)+'</span>'+
-    '<span class="small muted" style="flex:1">'+(CAP.checked ? 'Das Auslesen von R&D-Fotos klappt nur, wenn du die App auf claude.ai öffnest. Von Hand geht es immer.' : 'Foto-Funktion wird geprüft …')+'</span></div>');
+    '<span class="small muted" style="flex:1">'+photoHint()+' Von Hand geht es immer.</span><button type="button" class="btn sm" data-act="nav" data-v="set">Einrichten</button></div>');
   if(tR) h.push('<button type="button" class="btn st" style="--i:1" data-act="power-hand" data-r="'+esc(tgt)+'">'+ico(IC.gauge,18)+' Autostärke von Hand eintragen</button>');
   var ts=teamStandings(), lead=ts[0] ? Math.max(1,ts[0].pts) : 1;
   var stand='<div class="card flush st" style="--i:2"><div class="chead"><h2>Teamwertung</h2><span class="hint">'+esc(S.name)+'</span></div><div class="list">'+ts.map(function(r,i){
@@ -1359,6 +1407,7 @@ function vSettings(){
   // Daten
   h.push('<div class="stack">'+dataExportBlock()+dataImportBlock(false)+'</div>');
   h.push('<div class="stack">');
+  h.push(photoSettingsCard());
   h.push('<div class="card st" style="--i:6;display:flex;flex-direction:column;gap:12px">'+cardHead("Darstellung")+
     '<div class="field"><span class="lbl2">Farbschema</span><div class="seg" role="group" aria-label="Farbschema">'+segBtns("theme", APP.prefs.theme, [["system","Automatisch"],["dark","Dunkel"],["light","Hell"]])+'</div></div>'+
     '<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><span><b>Animationen</b><br><span class="small muted">Übergänge, Balken, Konfetti</span></span>'+
@@ -1369,6 +1418,24 @@ function vSettings(){
     '<button type="button" class="btn danger grow" data-act="del-save">Spielstand löschen</button></div></div>');
   h.push('</div></div>');
   return h.join("");
+}
+function photoSettingsCard(){
+  var h='<div class="card st" style="--i:6;display:flex;flex-direction:column;gap:10px">'+cardHead("Foto-Auslesen mit Claude");
+  if(CAP.sample){
+    return h+'<div class="okline">'+ico(IC.check,18,2.6)+' Bereit</div><p class="small muted" style="margin:0">Läuft über dein Claude-Konto auf claude.ai. Du brauchst keinen eigenen Schlüssel.</p></div>';
+  }
+  if(!(N && N.Anthropic)){
+    return h+'<p class="small muted" style="margin:0">'+photoHint()+'</p></div>';
+  }
+  var has=!!getApiKey();
+  h+='<p class="small muted" style="margin:0">Damit die App Ergebnis- und R&D-Fotos lesen kann, braucht sie einen eigenen Claude-API-Schlüssel. Den bekommst du auf console.anthropic.com unter „API Keys“. '+
+    'Jedes Foto kostet ein paar Cent und wird über diesen Schlüssel abgerechnet. Der Schlüssel bleibt nur auf diesem Gerät und ist nicht in Sicherungen enthalten.</p>';
+  if(has) h+='<div class="okline">'+ico(IC.check,18,2.6)+' Schlüssel hinterlegt (endet auf '+esc(getApiKey().slice(-4))+')</div>';
+  h+='<div class="field"><label for="api-key">'+(has ? 'Neuen Schlüssel eintragen' : 'API-Schlüssel')+'</label><div class="keyrow">'+
+    '<input class="inp" id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" aria-label="Claude-API-Schlüssel">'+
+    '<button type="button" class="btn pri" data-act="api-save">Speichern</button></div></div>';
+  if(has) h+='<button type="button" class="btn danger sm" data-act="api-del" style="align-self:flex-start">Schlüssel entfernen</button>';
+  return h+'</div>';
 }
 function dataExportBlock(){
   return '<div class="card st" style="--i:4;display:flex;flex-direction:column;gap:10px">'+cardHead("Daten & Sync", lastSaved ? "gespeichert "+stamp(lastSaved) : "")+
@@ -1533,10 +1600,15 @@ function checkCaps(){
     return s.limits().catch(function(){ return null; });
   }).then(function(l){
     CAP.checked=true;
-    CAP.images=!!(l && l.images);
-    if(CAP.images){ CAP.maxImgs=l.images.maxCount||1; if(l.images.mediaTypes && l.images.mediaTypes.length) $("file-img").accept=l.images.mediaTypes.join(","); }
-    if(S && (ui.view==="race" || ui.view==="teams")) refresh();
+    CAP.sample=!!(l && l.images);
+    if(CAP.sample){ CAP.maxImgs=l.images.maxCount||1; if(l.images.mediaTypes && l.images.mediaTypes.length) $("file-img").accept=l.images.mediaTypes.join(","); }
+    if(S && (ui.view==="race" || ui.view==="teams" || ui.view==="set")) refresh();
   });
+}
+function photoHint(){
+  if(!CAP.checked && !N) return "Wird geprüft …";
+  if(N && N.Anthropic) return "Hinterleg in den Einstellungen deinen Claude-API-Schlüssel, dann liest die App Ergebnis- und R&D-Fotos aus.";
+  return "Funktioniert, wenn du die App auf claude.ai oder als Android-App öffnest.";
 }
 function openPhoto(kind, raceId){
   if(raceId) ui.race=raceId;
@@ -1555,11 +1627,14 @@ function sheetPhoto(){
   if(SH.step==="choose"){
     h.push('<div class="small muted">'+esc(raceLabel(R))+'</div>');
     h.push('<div class="field"><span class="lbl2">Was ist auf dem Foto?</span><div class="seg sm" role="group" aria-label="Was ist auf dem Foto">'+segBtns("ph-kind", SH.kind, photoKinds())+'</div></div>');
-    h.push('<div class="card" style="background:var(--card-2);border:0;display:flex;gap:12px;align-items:flex-start">'+ico(IC.image,28,1.7)+'<div class="small">'+
+    h.push('<div class="card" style="background:var(--card-2);border:0;display:flex;gap:12px;align-items:flex-start"><span style="flex:0 0 auto;color:var(--ink-2)">'+ico(IC.image,26,1.7)+'</span><div class="small">'+
       (SH.kind==="power" ? 'Mach ein Foto oder Bildschirmfoto vom R&D-Vergleich der Teams im Spiel. Claude schätzt daraus die Stärke jedes Autos (0 bis 100).' :
-        'Mach ein Foto oder Bildschirmfoto vom Ergebnis-Bildschirm ('+esc(SESSLBL[SH.kind])+'). '+(CAP.maxImgs>1 ? 'Passt die Liste nicht auf ein Bild, wähl bis zu '+CAP.maxImgs+' Bilder auf einmal.' : ''))+
+        'Mach ein Foto vom Fernseher oder nimm ein Bildschirmfoto vom Ergebnis-Bildschirm ('+esc(SESSLBL[SH.kind])+'). '+(photoMax()>1 ? 'Passt die Liste nicht auf ein Bild, wähl bis zu '+photoMax()+' Bilder auf einmal.' : ''))+
       ' Danach kannst du alles prüfen, bevor es gespeichert wird.</div></div>');
-    return {title:"Foto auslesen", body:h.join(""), foot:'<button type="button" class="btn" data-act="sheet-close">Abbrechen</button><button type="button" class="btn pri" data-act="ph-choose">'+ico(IC.camera,18)+' Foto wählen</button>'};
+    h.push('<div class="photoacts"><button type="button" class="bigact photo" style="flex-direction:column;align-items:flex-start;gap:8px" data-act="ph-cam"><span class="ic">'+ico(IC.camera,22)+'</span><span class="tt">Foto machen</span></button>'+
+      '<button type="button" class="bigact hand" style="flex-direction:column;align-items:flex-start;gap:8px" data-act="ph-choose"><span class="ic">'+ico(IC.image,22)+'</span><span class="tt">Bilder wählen</span></button></div>');
+    if(!CAP.sample) h.push('<p class="small muted" style="margin:0">Wird über deinen Claude-API-Schlüssel ausgelesen (ein paar Cent pro Foto).</p>');
+    return {title:"Foto auslesen", body:h.join(""), foot:'<button type="button" class="btn wide" data-act="sheet-close">Abbrechen</button>'};
   }
   if(SH.step==="busy"){
     return {title:"Foto auslesen", body:'<div class="tyre"><div class="spin"></div><b style="font:800 20px var(--display);text-transform:uppercase">Claude liest das Foto …</b><span class="small muted">Das dauert meist 10 bis 30 Sekunden.</span></div>',
@@ -1617,32 +1692,91 @@ function photoPrompt(kind, n){
     return "Du siehst "+(n>1 ? n+" Bilder" : "ein Foto oder Bildschirmfoto")+" eines Diagramms zur Fahrzeugentwicklung (R&D, Leistungsvergleich der Teams) aus einem Formel-Rennspiel.\n"+
       "Teams in diesem Spielstand (Index: Name):\n"+S.teams.map(function(t,k){ return k+": "+t.name; }).join("\n")+"\n\n"+
       "Schätze für jedes Team die Gesamtstärke des Autos auf einer Skala von 0 bis 100. Das stärkste Team im Bild bekommt etwa 100, die anderen im Verhältnis dazu (nach Balkenlänge, Punktwerten oder Position im Diagramm). "+
-      "Zeigt das Bild einzelne Bereiche (zum Beispiel Aerodynamik, Chassis, Antrieb, Haltbarkeit), bilde daraus einen sinnvollen Gesamtwert. Ordne die Teams über Namen, Farben oder Logos zu. Teams, die nicht zu sehen sind, bekommen \"value\": null.\n"+
+      "Zeigt das Bild einzelne Bereiche (zum Beispiel Aerodynamik, Chassis, Antrieb, Haltbarkeit), bilde daraus einen sinnvollen Gesamtwert. Ordne die Teams über Namen, Farben oder Logos zu. Teams, die nicht zu sehen sind, bekommen \"value\": -1.\n"+
       "Antworte nur mit JSON in genau dieser Form:\n{\"teams\":[{\"team\":0,\"value\":95}],\"note\":\"kurzer Hinweis oder leer\"}";
   }
   return "Du siehst "+(n>1 ? n+" Bildschirmfotos" : "ein Foto oder Bildschirmfoto")+" eines Ergebnis-Bildschirms aus einem Formel-Rennspiel. Session: "+SESSLBL[kind]+".\n"+
     "Lies die Reihenfolge der Fahrer ab und ordne jeden Fahrer einem Eintrag dieser Liste zu (Index: Startnummer, Name, Team):\n"+
     S.drivers.map(function(dv,d){ var t=teamOfD(d); return d+": #"+(dv.num||"-")+", "+dv.name+", "+(t ? t.name : "-"); }).join("\n")+"\n\n"+
     "Regeln:\n- Positionen genau wie auf dem Bild (1, 2, 3 ...). Bei mehreren Bildern gehören sie zur selben Session: setze die Liste fort.\n"+
-    "- Ausgefallene oder disqualifizierte Fahrer (DNF, DSQ, Ret, Aufgegeben): \"dnf\": true und \"pos\": null.\n"+
-    "- Erkennst du einen Fahrer nicht sicher, setze \"driver\": null und schreib den Namen vom Bild in \"name\".\n"+
-    "- Schnellste Runde: wenn auf dem Bild markiert (zum Beispiel lila Symbol oder eigene Spalte), den Index in \"fastest\", sonst null.\n"+
-    "Antworte nur mit JSON in genau dieser Form:\n{\"rows\":[{\"pos\":1,\"driver\":0,\"name\":\"Name wie auf dem Bild\",\"dnf\":false}],\"fastest\":null,\"note\":\"kurzer Hinweis oder leer\"}";
+    "- Ausgefallene oder disqualifizierte Fahrer (DNF, DSQ, Ret, Aufgegeben): \"dnf\": true und \"pos\": 0.\n"+
+    "- Erkennst du einen Fahrer nicht sicher, setze \"driver\": -1 und schreib den Namen vom Bild in \"name\".\n"+
+    "- Schnellste Runde: wenn auf dem Bild markiert (zum Beispiel lila Symbol oder eigene Spalte), den Index in \"fastest\", sonst -1.\n"+
+    "Antworte nur mit JSON in genau dieser Form:\n{\"rows\":[{\"pos\":1,\"driver\":0,\"name\":\"Name wie auf dem Bild\",\"dnf\":false}],\"fastest\":-1,\"note\":\"kurzer Hinweis oder leer\"}";
+}
+/* Fotos für die API verkleinern: längste Seite höchstens 1600 px, JPEG */
+function prepImage(file){
+  return new Promise(function(res, rej){
+    var url=URL.createObjectURL(file), img=new Image();
+    img.onload=function(){
+      var mx=1600, sc=Math.min(1, mx/Math.max(img.naturalWidth, img.naturalHeight));
+      var c=document.createElement("canvas"); c.width=Math.max(1,Math.round(img.naturalWidth*sc)); c.height=Math.max(1,Math.round(img.naturalHeight*sc));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", 0.88).split(",")[1]);
+    };
+    img.onerror=function(){ URL.revokeObjectURL(url); rej({code:"image_rejected"}); };
+    img.src=url;
+  });
+}
+var SCHEMA_RESULTS={type:"object", additionalProperties:false, required:["rows","fastest","note"], properties:{
+  rows:{type:"array", items:{type:"object", additionalProperties:false, required:["pos","driver","name","dnf"],
+    properties:{pos:{type:"integer"}, driver:{type:"integer"}, name:{type:"string"}, dnf:{type:"boolean"}}}},
+  fastest:{type:"integer"}, note:{type:"string"}}};
+var SCHEMA_POWER={type:"object", additionalProperties:false, required:["teams","note"], properties:{
+  teams:{type:"array", items:{type:"object", additionalProperties:false, required:["team","value"], properties:{team:{type:"integer"}, value:{type:"integer"}}}},
+  note:{type:"string"}}};
+/* Claude über den eigenen API-Schlüssel (Android-App oder Browser) */
+function askClaudeApi(kind, list, signal){
+  var A=N.Anthropic;
+  var client=new A({apiKey:getApiKey(), dangerouslyAllowBrowser:true, maxRetries:1});
+  return Promise.all(list.map(prepImage)).then(function(imgs){
+    var content=imgs.map(function(b64){ return {type:"image", source:{type:"base64", media_type:"image/jpeg", data:b64}}; });
+    content.push({type:"text", text:photoPrompt(kind, imgs.length)});
+    return client.beta.messages.create({
+      model:"claude-opus-5-5",
+      max_tokens:16000,
+      betas:["server-side-fallback-2026-07-01"],
+      fallbacks:"default",
+      output_config:{effort:"medium", format:{type:"json_schema", schema: kind==="power" ? SCHEMA_POWER : SCHEMA_RESULTS}},
+      messages:[{role:"user", content:content}]
+    }, {signal:signal});
+  }).then(function(res){
+    if(res.stop_reason==="refusal") throw {code:"refused"};
+    if(res.stop_reason==="max_tokens") throw {code:"nothing"};
+    var txt=res.content.filter(function(b){ return b.type==="text"; }).map(function(b){ return b.text; }).join("");
+    try{ return JSON.parse(txt); }catch(e){ throw {code:"nothing"}; }
+  }, function(e){
+    if(e && e.code) throw e;
+    if(A.APIUserAbortError && e instanceof A.APIUserAbortError) throw {code:"cancelled"};
+    if(e instanceof A.AuthenticationError || e instanceof A.PermissionDeniedError) throw {code:"auth"};
+    if(e instanceof A.RateLimitError) throw {code:"rate_limited"};
+    if(e instanceof A.BadRequestError) throw {code:"bad", message:e.message};
+    if(e instanceof A.APIConnectionError) throw {code:"offline"};
+    if(e instanceof A.APIError) throw {code:"api", message:e.message};
+    if(e && e.name==="AbortError") throw {code:"cancelled"};
+    throw e;
+  });
 }
 function runPhoto(files){
   var kind=SH.kind, me=SH;
-  var list=Array.prototype.slice.call(files, 0, CAP.maxImgs||1);
+  var list=Array.prototype.slice.call(files, 0, photoMax());
   SH.step="busy"; SH.ctrl=new AbortController(); renderSheet();
-  getCap("sample").then(function(sample){
-    if(!sample) throw {code:"unavailable"};
-    return sample.json(photoPrompt(kind, list.length), {images:list, signal:me.ctrl.signal});
-  }).then(function(res){
+  var job;
+  if(CAP.sample){
+    job=getCap("sample").then(function(sample){
+      if(!sample) throw {code:"unavailable"};
+      return sample.json(photoPrompt(kind, list.length), {images:list, signal:me.ctrl.signal});
+    });
+  } else if(apiReady()) job=askClaudeApi(kind, list, me.ctrl.signal);
+  else job=Promise.reject({code:"unavailable"});
+  job.then(function(res){
     if(SH!==me) return;
     me.ctrl=null;
     if(kind==="power"){
       var vals=S.teams.map(function(){ return null; });
       (res && Array.isArray(res.teams) ? res.teams : []).forEach(function(x){
-        if(x && isNum(x.team) && x.team>=0 && x.team<S.teams.length && isNum(x.value)) vals[x.team]=clamp(Math.round(x.value),0,100);
+        if(x && isNum(x.team) && x.team>=0 && x.team<S.teams.length && isNum(x.value) && x.value>=0) vals[x.team]=clamp(Math.round(x.value),0,100);
       });
       if(!vals.some(function(v){ return v!=null; })) throw {code:"nothing"};
       me.vals=vals; me.note=res && typeof res.note==="string" ? res.note.slice(0,200) : "";
@@ -1651,9 +1785,9 @@ function runPhoto(files){
       (res && Array.isArray(res.rows) ? res.rows : []).forEach(function(x){
         if(!x) return;
         var d=(isNum(x.driver) && x.driver>=0 && x.driver<ND) ? x.driver : matchName(x.name);
-        var dnf=!!x.dnf, pos=isNum(x.pos) ? Math.round(x.pos) : null;
-        if(!dnf && (pos===null || pos<1 || pos>ND)) return;
-        rows.push({pos:pos, d:d==null ? null : d, name:typeof x.name==="string" ? x.name.slice(0,60) : "", dnf:dnf});
+        var dnf=!!x.dnf, pos=(isNum(x.pos) && x.pos>=1) ? Math.round(x.pos) : null;
+        if(!dnf && (pos===null || pos>ND)) return;
+        rows.push({pos:dnf ? null : pos, d:d==null ? null : d, name:typeof x.name==="string" ? x.name.slice(0,60) : "", dnf:dnf});
       });
       if(!rows.length) throw {code:"nothing"};
       rows.sort(function(a,b){ if(a.dnf!==b.dnf) return a.dnf ? 1 : -1; return (a.pos||0)-(b.pos||0); });
@@ -1671,7 +1805,10 @@ function runPhoto(files){
     else if(c==="not_granted") msg="Du hast der App nicht erlaubt, Claude zu fragen. Wenn du es doch nutzen willst, tipp auf „Nochmal“ und erlaube es.";
     else if(c==="rate_limited") msg="Gerade zu viele Anfragen. Warte kurz und versuch es dann nochmal.";
     else if(c==="image_rejected") msg="Dieses Bild wurde nicht angenommen. Nimm ein JPG oder PNG, das nicht zu groß ist.";
-    else if(c==="unavailable" || c==="images_unavailable") msg="Das Auslesen von Fotos geht nur, wenn du die App auf claude.ai öffnest.";
+    else if(c==="auth") msg="Der Claude-API-Schlüssel wurde nicht angenommen. Prüf ihn unter Einstellungen \u2192 Foto-Auslesen.";
+    else if(c==="offline") msg="Keine Verbindung zu Claude. Prüf deine Internetverbindung und versuch es nochmal.";
+    else if(c==="bad" || c==="api") msg="Claude hat die Anfrage abgelehnt: "+String(e.message||"").slice(0,180);
+    else if(c==="unavailable" || c==="images_unavailable") msg=photoHint();
     else if(c==="refused") msg="Claude konnte dieses Bild nicht auslesen. Versuch ein anderes Foto.";
     else msg="Das Auslesen hat nicht geklappt. Versuch es nochmal oder trag es von Hand ein.";
     me.err=msg; me.step="error"; renderSheet();
@@ -1741,6 +1878,15 @@ function exportJson(){ return JSON.stringify(APP); }
 function fileName(){ var d=new Date(); return "f1-manager-"+d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)+".json"; }
 function exportFile(){
   var json=exportJson();
+  if(NATIVE){
+    N.Filesystem.writeFile({path:fileName(), data:json, directory:N.Directory.Cache, encoding:N.Encoding.UTF8}).then(function(r){
+      return N.Share.share({title:"F1 Manager Sicherung", text:"Sicherung vom "+new Date().toLocaleDateString("de-DE"), files:[r.uri], dialogTitle:"Sicherung speichern oder teilen"});
+    }).then(function(){ toast("Sicherung bereit"); }).catch(function(e){
+      if(e && /cancel/i.test(String(e.message||e))) return;
+      showExportText(json); toast("Teilen ging nicht \u2013 kopier den Text");
+    });
+    return;
+  }
   getCap("downloads").then(function(dl){
     if(dl && typeof dl.save==="function"){
       return dl.save({filename:fileName(), data:json}).then(function(){ toast("Datei gesichert"); }).catch(function(e){
@@ -1861,7 +2007,11 @@ document.addEventListener("click", function(e){
     case "pw-del": delete S.power[SH.race]; touch(); closeSheet(); toast("Autostärke gelöscht"); refresh(); break;
     /* Einstellungen */
     case "mode": S.mode=v; touch(); refresh(); break;
-    case "theme": APP.prefs.theme=v; touch(); refresh(); break;
+    case "theme": switchTheme(v, el); break;
+    case "theme-toggle": switchTheme(isDark() ? "light" : "dark", el); break;
+    case "api-save": { var kv=($("api-key").value||"").trim(); if(!/^sk-ant-/.test(kv)){ toast("Das sieht nicht nach einem Claude-Schlüssel aus (beginnt mit sk-ant-)"); break; } setApiKey(kv); refresh(); toast("Schlüssel gespeichert"); break; }
+    case "api-del": setApiKey(""); refresh(); toast("Schlüssel entfernt"); break;
+    case "ph-cam": $("file-cam").value=""; $("file-cam").click(); break;
     case "motion": APP.prefs.motion=!APP.prefs.motion; touch(); refresh(); break;
     case "logo": logoFor=+el.getAttribute("data-k"); $("file-logo").value=""; $("file-logo").click(); break;
     case "logo-rm": S.teams[+el.getAttribute("data-k")].logo=""; touch(); refresh(); break;
@@ -1891,6 +2041,7 @@ document.addEventListener("click", function(e){
     /* Daten */
     case "exp-copy": {
       var json=exportJson();
+      if(NATIVE){ N.Clipboard.write({string:json}).then(function(){ toast("Text kopiert \u2013 jetzt auf dem anderen Gerät einfügen"); }, function(){ showExportText(json); }); break; }
       if(navigator.clipboard && navigator.clipboard.writeText){
         navigator.clipboard.writeText(json).then(function(){ toast("Text kopiert – jetzt auf dem anderen Gerät einfügen"); }, function(){ showExportText(json); toast("Bitte den markierten Text kopieren"); });
       } else { showExportText(json); toast("Bitte den markierten Text kopieren"); }
@@ -1951,6 +2102,7 @@ document.addEventListener("change", function(e){
   }
 });
 $("file-img").addEventListener("change", function(){ var f=this.files; if(f && f.length && SH && SH.type==="photo") runPhoto(f); });
+$("file-cam").addEventListener("change", function(){ var f=this.files; if(f && f.length && SH && SH.type==="photo") runPhoto(f); });
 $("file-logo").addEventListener("change", function(){ var f=this.files && this.files[0]; if(f && logoFor!=null) readLogo(f, logoFor); });
 $("file-json").addEventListener("change", function(){
   var f=this.files && this.files[0]; if(!f) return;
@@ -1965,13 +2117,35 @@ window.addEventListener("pagehide", flush);
 try{ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(){ if(APP.prefs.theme==="system") refresh(); }); }catch(e){}
 
 /* ================= Start ================= */
+function showIntro(){
+  if(!APP.prefs.motion || reducedMotion()) return;
+  var d=document.createElement("div"); d.className="intro"; d.setAttribute("aria-hidden","true");
+  d.innerHTML=APP_MARK+'<b>F1 Manager</b><span class="stripe"></span>';
+  document.body.appendChild(d);
+  setTimeout(function(){ d.remove(); }, 1900);
+}
 var storageProbe=true;
 try{ localStorage.setItem("f1m-probe","1"); localStorage.removeItem("f1m-probe"); }catch(e){ storageProbe=false; }
 storageOk=storageProbe;
 APP=loadApp();
 loadUi();
 buildNav();
+if(NATIVE) showIntro();
 render(true);
 showBanner();
 checkCaps();
+if(NATIVE){
+  N.Preferences.get({key:KEY_API}).then(function(r){ if(r && r.value && !getApiKey()){ setApiKey(r.value); if(S) refresh(); } }).catch(function(){});
+  if(!APP.saves.length){
+    N.Preferences.get({key:KEY}).then(function(r){
+      if(r && r.value){ try{ APP=normApp(JSON.parse(r.value)); saveLocal(); render(true); }catch(e){} }
+    }).catch(function(){});
+  }
+  N.App.addListener("backButton", function(){
+    if(SH){ closeSheet(); return; }
+    if(ui.view!=="standings"){ go("standings"); return; }
+    N.App.minimizeApp ? N.App.minimizeApp() : N.App.exitApp();
+  });
+  N.App.addListener("pause", flush);
+}
 })();

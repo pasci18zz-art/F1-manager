@@ -1,0 +1,95 @@
+name: Android-App bauen
+
+on:
+  push:
+    paths-ignore:
+      - "README.md"
+      - "dist/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Web-App bauen
+        run: sh build.sh
+
+      - name: Android-Projekt aktualisieren
+        run: npx cap sync android
+
+      # Signaturschlüssel: bleibt immer derselbe, damit sich jede neue APK über die alte installieren lässt.
+      # Liegt als Repository-Secret vor (ANDROID_KEYSTORE_BASE64 + ANDROID_KEYSTORE_PASSWORD) oder wird
+      # einmal erzeugt und im internen Actions-Cache aufbewahrt. Er kommt nie ins Repository.
+      - name: Signaturschlüssel aus dem Cache holen
+        uses: actions/cache@v4
+        with:
+          path: ~/f1m-signing
+          key: f1m-signing-v1
+
+      - name: Signaturschlüssel bereitstellen
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p ~/f1m-signing
+          if [ -n "$KS_B64" ] && [ -n "$KS_PW" ]; then
+            echo "$KS_B64" | base64 -d > ~/f1m-signing/release.jks
+            printf '%s' "$KS_PW" > ~/f1m-signing/pw
+          elif [ ! -f ~/f1m-signing/release.jks ]; then
+            PW=$(openssl rand -hex 24)
+            keytool -genkeypair -keystore ~/f1m-signing/release.jks -storetype PKCS12 -alias f1manager \
+              -keyalg RSA -keysize 2048 -validity 10000 -storepass "$PW" -keypass "$PW" -dname "CN=F1 Manager, C=DE"
+            printf '%s' "$PW" > ~/f1m-signing/pw
+          fi
+          PW=$(cat ~/f1m-signing/pw)
+          echo "::add-mask::$PW"
+          echo "F1M_KEYSTORE=$HOME/f1m-signing/release.jks" >> "$GITHUB_ENV"
+          echo "F1M_KEYSTORE_PASSWORD=$PW" >> "$GITHUB_ENV"
+
+      - name: APK bauen
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PappVersionCode=${{ github.run_number }} -PappVersionName=1.${{ github.run_number }}
+
+      - name: APK umbenennen
+        run: cp android/app/build/outputs/apk/release/app-release.apk F1-Manager.apk
+
+      - name: APK als Build-Ergebnis speichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: F1-Manager-1.${{ github.run_number }}
+          path: F1-Manager.apk
+
+      - name: Release mit Download-Link anlegen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.${{ github.run_number }}
+          name: F1 Manager 1.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: F1-Manager.apk
+          body: |
+            Android-App „F1 Manager“, Version 1.${{ github.run_number }}.
+            Zum Installieren F1-Manager.apk auf dem Handy herunterladen und öffnen.
+            Neuere Versionen lassen sich einfach darüber installieren, deine Daten bleiben erhalten.

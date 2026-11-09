@@ -1,0 +1,15 @@
+{
+  "appId": "de.pasci.f1manager",
+  "appName": "F1 Manager",
+  "webDir": "www",
+  "backgroundColor": "#0E0F14",
+  "android": {
+    "backgroundColor": "#0E0F14"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFit": "cover"
+    }
+  }
+}
