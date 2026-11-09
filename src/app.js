@@ -1582,7 +1582,6 @@ function sheetNewSave(){
 function openEntry(sess){
   SH={type:"entry", sess:sess||ui.sess};
   showSheet();
-  setTimeout(function(){ if(SH && SH.type==="entry") focusFirstEmpty(); }, 420);
 }
 function entryState(k){
   var arr=S.res[ui.race][k], dnfs=[], maxNum=0, d;
@@ -1986,7 +1985,7 @@ document.addEventListener("click", function(e){
       toast("Neue Saison angelegt – Fahrerwechsel hier eintragen"); break; }
     case "confirm-ok": { var o=SH.o; closeSheet(); o.onOk(); break; }
     /* Eintragen */
-    case "e-sess": SH.sess=v; renderSheet(); setTimeout(focusFirstEmpty, 50); break;
+    case "e-sess": SH.sess=v; renderSheet(); break;
     case "e-wx": {
       var RW=S.res[ui.race], ph=el.getAttribute("data-ph"); RW.wx=RW.wx||{};
       var w=normWx(RW.wx[SH.sess])||{};
@@ -2104,6 +2103,26 @@ $("file-json").addEventListener("change", function(){
   fr.readAsText(f);
 });
 $("scrim").addEventListener("click", closeSheet);
+/* Wischen links/rechts wechselt den Tab */
+(function(){
+  var sx=0, sy=0, st=0, on=false;
+  var NOSWIPE=".chips,.gridwrap,.strip,.chartbox,.cropbox,input,textarea,select,.range,.seg";
+  document.addEventListener("touchstart", function(e){
+    on=false;
+    if(!S || SH || e.touches.length!==1) return;
+    var t=e.target;
+    if(!t.closest || !t.closest("#main") || t.closest(NOSWIPE)) return;
+    sx=e.touches[0].clientX; sy=e.touches[0].clientY; st=Date.now(); on=true;
+  }, {passive:true});
+  document.addEventListener("touchend", function(e){
+    if(!on) return; on=false;
+    var c=e.changedTouches[0], dx=c.clientX-sx, dy=c.clientY-sy;
+    if(Date.now()-st>700 || Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.6) return;
+    var i=0; VIEWS.forEach(function(v,j){ if(v.k===ui.view) i=j; });
+    var n=i+(dx<0 ? 1 : -1);
+    if(n>=0 && n<VIEWS.length) go(VIEWS[n].k);
+  }, {passive:true});
+})();
 document.addEventListener("keydown", function(e){ if(e.key==="Escape" && SH) closeSheet(); });
 document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="hidden") flush(); });
 window.addEventListener("pagehide", flush);
