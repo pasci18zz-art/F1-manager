@@ -406,3 +406,11 @@ html.nomo *, html.nomo *::before, html.nomo *::after{animation:none!important;tr
 .duel .dbar{display:flex;height:7px;border-radius:4px;overflow:hidden;gap:2px;background:var(--line)}
 .duel .dbar i{display:block;height:100%;transform-origin:left;animation:grow .8s cubic-bezier(.2,.8,.2,1) both}
 .still .duel .dbar i{animation:none}
+
+/* Wetter */
+.wx{display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2)}
+.wx-sun{color:var(--gold)} .wx-mixed{color:var(--bronze)} .wx-rain{color:#4FA3FF} .wx-storm{color:var(--purple)}
+.wxline{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;margin:-2px 0 8px}
+.wxrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.wxs{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--ink-2)}
+.chip.wxchip[aria-pressed="true"]{background:var(--card-2);border-color:var(--accent);color:var(--ink)}

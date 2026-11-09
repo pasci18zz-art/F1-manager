@@ -75,7 +75,16 @@ var IC = {
 };
 
 /* ================= Datenmodell (kompatibel zur alten HTML-Datei) ================= */
-function blankSession(){ return {q:nulls(), sq:nulls(), s:nulls(), r:nulls(), fls:null, flr:null, notes:""}; }
+function blankSession(){ return {q:nulls(), sq:nulls(), s:nulls(), r:nulls(), fls:null, flr:null, notes:"", wx:{}}; }
+var WX=[
+  ["sun","Sonnig",'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>'],
+  ["mixed","Wechselhaft",'<path d="M8 3.5v1.5M3.5 8H5M4.8 4.8l1 1M12 6.5a4 4 0 0 0-6.6 4"/><path d="M9 20h8.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.6 1.4A2.8 2.8 0 0 0 9 20z"/>'],
+  ["cloud","Bewölkt",'<path d="M7 19h10.5a4 4 0 0 0 0-8 6 6 0 0 0-11.6 1.6A3.2 3.2 0 0 0 7 19z"/>'],
+  ["rain","Regen",'<path d="M7 15h10.5a4 4 0 0 0 0-8 6 6 0 0 0-11.6 1.6A3.2 3.2 0 0 0 7 15z"/><path d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/>'],
+  ["storm","Starkregen",'<path d="M7 14h10.5a4 4 0 0 0 0-8 6 6 0 0 0-11.6 1.6A3.2 3.2 0 0 0 7 14z"/><path d="M8 17l-1.5 3.5M12 17l-1.5 3.5M16 17l-1.5 3.5M13 14l-2 3h3l-2 3"/>']
+];
+function wxDef(k){ for(var i=0;i<WX.length;i++) if(WX[i][0]===k) return WX[i]; return null; }
+function wxIcon(k, size){ var w=wxDef(k); return w ? '<span class="wx wx-'+k+'" title="'+w[1]+'">'+ico(w[2], size||16, 2)+'</span>' : ''; }
 function cleanVal(v){
   if(v===DNF) return DNF;
   if(typeof v==="number" && v>=1 && v<=ND) return v;
@@ -165,6 +174,7 @@ function normSeason(x, idx){
     ["q","sq","s","r"].forEach(function(k){
       if(Array.isArray(src[k])) for(j=0;j<ND;j++) out.res[rid][k][j]=cleanVal(src[k][j]);
     });
+    if(src.wx && typeof src.wx==="object") ["q","sq","s","r"].forEach(function(k){ if(wxDef(src.wx[k])) out.res[rid].wx[k]=src.wx[k]; });
     if(typeof src.notes==="string") out.res[rid].notes=src.notes.slice(0,4000);
     else if(typeof src.note==="string") out.res[rid].notes=src.note.slice(0,4000);
     if(typeof src.fls==="number" && src.fls>=0 && src.fls<ND) out.res[rid].fls=src.fls;
@@ -345,7 +355,7 @@ function raceCode(R){
   return n>1 ? b+n : b;
 }
 function raceIndex(id){ for(var i=0;i<S.races.length;i++) if(S.races[i].id===id) return i; return -1; }
-function sessionsOf(id){ return S.sprints[id] ? ["q","sq","s","r"] : ["q","r"]; }
+function sessionsOf(id){ return S.sprints[id] ? ["sq","s","q","r"] : ["q","r"]; }
 function weekendPts(id, d){
   var c=cfg(), R=S.res[id], hs=S.sprints[id], o={q:0, s:0, fls:0, r:0, flr:0, t:0};
   if(R.q[d]===1) o.q=c.qualy;
@@ -1056,7 +1066,8 @@ function vRace(){
   h.push('<div class="card gp st" style="--i:1">'+
     '<button type="button" class="iconbtn" data-act="race-step" data-v="-1" aria-label="Vorheriges Rennen"'+(ri<=0 ? ' disabled' : '')+'>'+ico(IC.left,20,2.4)+'</button>'+
     '<span class="fl" aria-hidden="true">'+esc(R.flag||"")+'</span>'+
-    '<div class="t"><div class="eyebrow">Rennen '+(ri+1)+' von '+S.races.length+(S.sprints[id] ? ' · Sprint-Wochenende' : '')+'</div><div class="n">'+esc(R.name)+'</div></div>'+
+    '<div class="t"><div class="eyebrow">Rennen '+(ri+1)+' von '+S.races.length+(S.sprints[id] ? ' · Sprint-Wochenende' : '')+'</div><div class="n">'+esc(R.name)+'</div>'+
+    (function(){ var wx=S.res[id].wx||{}, out=sess.filter(function(k){ return wx[k]; }).map(function(k){ return '<span class="wxs">'+wxIcon(wx[k],15)+esc(SESSSHORT[k])+'</span>'; }); return out.length ? '<div class="wxrow">'+out.join("")+'</div>' : ''; })()+'</div>'+
     '<button type="button" class="iconbtn" data-act="race-step" data-v="1" aria-label="Nächstes Rennen"'+(ri>=S.races.length-1 ? ' disabled' : '')+'>'+ico(IC.right,20,2.4)+'</button></div>');
   h.push('<div class="cols"><div class="stack">'+weekendCard(id)+sessionCard(id, sess)+'</div><div class="stack">'+powerCard(id, ri)+entryCard(id)+'</div></div>');
   return h.join("");
@@ -1092,7 +1103,7 @@ function sessionCard(id, sess){
   rows.sort(function(a,b){ return a.p-b.p; });
   var lim = k==="r" ? 10 : (k==="s" ? 8 : 0), flD = k==="r" ? R.flr : (k==="s" ? R.fls : null);
   var h=['<div class="card st" style="--i:3">'+cardHead("Ergebnisse")+'<div class="seg sm" role="group" aria-label="Session" style="margin-bottom:8px">'+
-    segBtns("sess", k, sess.map(function(s){ return [s, SESSSHORT[s]]; }))+'</div>'];
+    segBtns("sess", k, sess.map(function(s){ return [s, SESSSHORT[s]]; }))+'</div>'+wxLine(R, k)];
   if(!rows.length && !dnfs.length){
     h.push('<div class="empty small">'+esc(SESSLBL[k])+' noch nicht eingetragen.</div></div>');
     return h.join("");
@@ -1118,6 +1129,16 @@ function sessionCard(id, sess){
   });
   h.push('</div></div>');
   return h.join("");
+}
+function wxLine(R, k){
+  var w=wxDef((R.wx||{})[k]);
+  return '<div class="wxline">'+(w ? wxIcon(w[0],18)+'<span>'+esc(w[1])+'</span>' : '<span class="muted">Wetter nicht eingetragen</span>')+'</div>';
+}
+function wxPicker(R, k){
+  var cur=(R.wx||{})[k];
+  return '<div class="field"><span class="lbl2">Wetter '+esc(SESSLBL[k])+'</span><div class="chips" style="flex-wrap:wrap">'+WX.map(function(w){
+    return '<button type="button" class="chip wxchip" data-act="e-wx" data-v="'+w[0]+'" aria-pressed="'+(cur===w[0])+'">'+wxIcon(w[0],16)+esc(w[1])+'</button>';
+  }).join("")+'</div></div>';
 }
 function powerCard(id, ri){
   var lp=latestPower(ri);
@@ -1571,6 +1592,7 @@ function sheetEntry(){
   if(st.dnfs.length<ND) rows.push(row("add", "DNF", null, '', false));
   var h=['<div class="small muted">'+esc(raceLabel(RR))+'</div><div class="seg sm" role="group" aria-label="Session">'+segBtns("e-sess", k, sess.map(function(s2){ return [s2, SESSSHORT[s2]]; }))+'</div>',
     '<p class="small muted" style="margin:0">Tipp die ersten Buchstaben oder die Startnummer und drück auf <b>Weiter</b>. Der Fahrer wird eingetragen und es geht mit dem nächsten Platz weiter.</p>',
+    wxPicker(R, k),
     '<div class="elist">'+rows.join("")+'</div>'];
   if(k==="r" || k==="s"){
     var flk = k==="r" ? "flr" : "fls", cur=R[flk];
@@ -1905,6 +1927,7 @@ document.addEventListener("click", function(e){
     case "confirm-ok": { var o=SH.o; closeSheet(); o.onOk(); break; }
     /* Eintragen */
     case "e-sess": SH.sess=v; renderSheet(); setTimeout(focusFirstEmpty, 50); break;
+    case "e-wx": { var RW=S.res[ui.race]; RW.wx=RW.wx||{}; if(RW.wx[SH.sess]===v) delete RW.wx[SH.sess]; else RW.wx[SH.sess]=v; touch(); SH.keepScroll=true; renderSheet(); break; }
     case "e-clearsess": { var s0=SH.sess; S.res[ui.race][s0]=nulls(); if(s0==="r") S.res[ui.race].flr=null; if(s0==="s") S.res[ui.race].fls=null; touch(); renderSheet(); break; }
     case "e-done": { var sd=SH.sess; ui.sess=sd; closeSheet(); if(sd==="r" && S.res[ui.race].r.indexOf(1)>=0) pendingConfetti=true; refresh(); toast("Gespeichert"); break; }
     /* Foto */
