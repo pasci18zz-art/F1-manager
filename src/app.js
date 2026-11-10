@@ -1210,7 +1210,7 @@ function ensureRace(){
 }
 function vRace(){
   ensureRace();
-  if(!ui.race) return '<div class="card">'+emptyBox(IC.race,"Kein Rennkalender","Lege in den Einstellungen Rennen an.",'<button type="button" class="btn pri" data-act="nav" data-v="set">Zu den Einstellungen</button>')+'</div>';
+  if(!ui.race) return '<div class="card">'+emptyBox(IC.race,"Kein Rennkalender","Lege in den Einstellungen Rennen an.",'<button type="button" class="btn pri" data-act="setp-go" data-v="cal">Zu den Einstellungen</button>')+'</div>';
   var id=ui.race, ri=raceIndex(id), R=S.races[ri], sess=sessionsOf(id);
   if(sess.indexOf(ui.sess)<0) ui.sess="r";
   var h=[];
@@ -1624,17 +1624,60 @@ function vTeams(){
   return h.join("");
 }
 
-/* ---------- Einstellungen ---------- */
+/* ---------- Einstellungen: Übersicht mit Unterseiten ---------- */
+var SETP=[
+  {k:"season", l:"Saison & Serie", ic:"cup", c:"#FF5A36"},
+  {k:"drivers", l:"Fahrer", ic:"standings", c:"#2E7CF6"},
+  {k:"teams", l:"Teams & Logos", ic:"teams", c:"#8B5CF6"},
+  {k:"cal", l:"Rennkalender", ic:"race", c:"#E8002D"},
+  {k:"look", l:"Darstellung", ic:"sparkle", c:"#F2A900"},
+  {k:"data", l:"Daten & Sync", ic:"sync", c:"#11A35A"},
+  {k:"save", l:"Spielstand", ic:"copy", c:"#6B7282"}
+];
+function setWide(){ return window.innerWidth>=900; }
+function setSub(k){
+  if(k==="season") return esc(S.name)+" · "+MODES[S.mode].name;
+  if(k==="drivers") return ND+" Fahrer im Feld";
+  if(k==="teams") return S.teams.length+" Teams · "+S.teams.filter(function(t){ return t.logo; }).length+" mit Logo";
+  if(k==="cal"){ var sp=S.races.filter(function(R){ return S.sprints[R.id]; }).length; return S.races.length+" Rennen"+(sp ? " · "+sp+" Sprints" : "")+" · "+drivenCount()+" gefahren"; }
+  if(k==="look") return ({system:"Automatisch",dark:"Dunkel",light:"Hell"})[APP.prefs.theme]+" · Animationen "+(APP.prefs.motion ? "an" : "aus");
+  if(k==="data") return lastSaved ? "gespeichert "+stamp(lastSaved) : "Sichern, Übertragen, Importieren";
+  if(k==="save") return esc(SV.name);
+  return "";
+}
+function setMenu(cur){
+  function group(title, keys){
+    return '<div class="setgroup"><div class="setgh">'+title+'</div><div class="card flush setlist">'+SETP.filter(function(p){ return keys.indexOf(p.k)>=0; }).map(function(p){
+      return '<button type="button" class="setitem'+(cur===p.k ? ' on' : '')+'" data-act="setp" data-v="'+p.k+'"><span class="setic" style="--c:'+p.c+'">'+ico(IC[p.ic],19,2.1)+'</span>'+
+        '<span class="grow"><b>'+p.l+'</b><span class="small muted">'+setSub(p.k)+'</span></span><span class="setchev">'+ico(IC.right,18,2.2)+'</span></button>';
+    }).join("")+'</div></div>';
+  }
+  var sp=S.races.filter(function(R){ return S.sprints[R.id]; }).length;
+  return '<div class="setmenu">'+
+    '<div class="card sethero st" style="--i:0"><div class="small muted">Aktueller Spielstand</div><div class="sethero-t">'+esc(SV.name)+'</div>'+
+    '<div class="sethero-s">'+esc(S.name)+' · '+MODES[S.mode].name+'</div>'+
+    '<div class="sethero-k"><span><b class="num">'+ND+'</b>Fahrer</span><span><b class="num">'+S.teams.length+'</b>Teams</span><span><b class="num">'+S.races.length+'</b>Rennen</span><span><b class="num">'+sp+'</b>Sprints</span></div></div>'+
+    group("Diese Saison", ["season","drivers","teams","cal"])+group("App", ["look","data","save"])+'</div>';
+}
 function vSettings(){
-  var h=['<div class="setgrid">'];
-  h.push('<div class="stack">');
-  h.push('<div class="card st" style="--i:0;display:flex;flex-direction:column;gap:12px">'+cardHead("Saison")+
+  var wide=setWide(), k=ui.setp || (wide ? "season" : null);
+  if(!k) return setMenu(null);
+  var p=null; SETP.forEach(function(x){ if(x.k===k) p=x; });
+  var page='<div class="setpage">'+(wide ? '' : '<button type="button" class="setback" data-act="setp" data-v="">'+ico(IC.left,20,2.4)+' Einstellungen</button>')+
+    '<h2 class="settitle">'+p.l+'</h2>'+setPage(k)+'</div>';
+  return wide ? '<div class="setsplit">'+setMenu(k)+page+'</div>' : page;
+}
+function setPage(k){
+  var h=[];
+  if(k==="season"){
+h.push('<div class="card st" style="--i:0;display:flex;flex-direction:column;gap:12px">'+cardHead("Saison")+
     '<div class="field"><label for="season-name">Name der Saison</label><input class="inp" id="season-name" data-inp="season-name" value="'+esc(S.name)+'"></div>'+
     '<div class="field"><span class="lbl2">Serie</span><div class="seg" role="group" aria-label="Serie">'+segBtns("mode", S.mode, [["f1","F1"],["f2","F2"]])+'</div>'+
     '<span class="small muted">'+esc(MODES[S.mode].desc)+'</span></div>'+
     '<div class="row"><button type="button" class="btn grow" data-act="new-season">'+ico(IC.plus,18)+' Neue Saison</button><button type="button" class="btn danger" data-act="del-season"'+(SV.seasons.length<2 ? ' disabled title="Die einzige Saison kann nicht gelöscht werden"' : '')+'>Saison löschen</button></div></div>');
-  // Fahrer
-  h.push('<div class="card st" style="--i:1">'+cardHead("Fahrer", "Nummer · Name · Team")+
+  }
+  if(k==="drivers"){
+h.push('<div class="card st" style="--i:0">'+cardHead("Fahrer", "Nummer · Name · Team")+
     '<div class="field" style="margin-bottom:8px"><span class="lbl2">Fahrer im Feld</span><div class="seg sm" role="group" aria-label="Fahrer im Feld">'+segBtns("nd", String(ND), [["20","20"],["22","22"],["24","24"]])+'</div></div>'+
     S.drivers.slice(0,ND).map(function(dv,d){
     return '<div class="drvrow"><input class="inp n" id="dnum-'+d+'" data-inp="dnum" data-d="'+d+'" value="'+esc(dv.num||"")+'" inputmode="numeric" maxlength="3" aria-label="Startnummer Fahrer '+(d+1)+'">'+
@@ -1642,9 +1685,9 @@ function vSettings(){
       '<span class="tsel">'+dLogo(d,36)+'<select class="inp" id="dteam-'+d+'" data-chg="dteam" data-d="'+d+'" aria-label="Team von '+esc(dv.name)+'">'+
       S.teams.map(function(t,k){ return '<option value="'+k+'"'+(S.dTeam[d]===k ? ' selected' : '')+'>'+esc(t.name)+'</option>'; }).join("")+'</select></span></div>';
   }).join("")+'</div>');
-  h.push('</div><div class="stack">');
-  // Teams
-  h.push('<div class="card st" style="--i:2">'+cardHead("Teams & Logos", "Logo antippen zum Ändern")+S.teams.map(function(t,k){
+  }
+  if(k==="teams"){
+h.push('<div class="card st" style="--i:0">'+cardHead("Teams & Logos", "Logo antippen zum Ändern")+S.teams.map(function(t,k){
     var used=S.dTeam.indexOf(k)>=0;
     return '<div class="srow" style="flex-wrap:wrap">'+
       '<button type="button" class="logobtn" data-act="logo" data-k="'+k+'" aria-label="Logo für '+esc(t.name)+' wählen">'+logoHtml(t,50)+'<span class="ed">'+ico(IC.pen,12,2.4)+'</span></button>'+
@@ -1656,36 +1699,47 @@ function vSettings(){
         (!used && S.teams.length>1 ? '<button type="button" class="iconbtn" data-act="team-del" data-k="'+k+'" aria-label="Team löschen">'+ico(IC.trash,18)+'</button>' : '')+'</div></div></div>';
   }).join("")+'<button type="button" class="btn wide" data-act="team-add" style="margin-top:8px">'+ico(IC.plus,18)+' Eigenes Team hinzufügen</button>'+
     '<p class="small muted" style="margin:8px 0 0">Tipp: Zeichne dein Logo, fotografiere es und wähle das Foto hier aus. Es wird automatisch quadratisch zugeschnitten.</p></div>');
-  // Kalender
-  h.push('<div class="card st" style="--i:3">'+cardHead("Rennkalender", "Flagge · Name · Sprint")+
-    '<div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:8px"><span><b>Anzahl Strecken</b><br><span class="small muted">zählt von oben nach unten</span></span>'+
-    '<span class="stepper"><button type="button" class="iconbtn" data-act="race-count" data-v="-1" aria-label="Eine Strecke weniger"'+(S.races.length<=1 ? ' disabled' : '')+'>'+ico('<path d="M5 12h14"/>',18,2.6)+'</button>'+
-    '<input class="inp n" id="race-count" type="number" inputmode="numeric" min="1" max="40" value="'+S.races.length+'" data-chg="race-count" aria-label="Anzahl Strecken">'+
-    '<button type="button" class="iconbtn" data-act="race-count" data-v="1" aria-label="Eine Strecke mehr">'+ico(IC.plus,18,2.6)+'</button></span></div>'+
-    '<div class="calsort" id="calsort">'+S.races.concat(S.spare||[]).map(function(R,i){
-    var off=i>=S.races.length;
-    return (i===S.races.length ? '<div class="caldiv">Nicht im Kalender \u2013 hochziehen oder Anzahl erhöhen</div>' : '')+'<div class="srow calrow'+(off ? ' off' : '')+'" data-r="'+esc(R.id)+'"><span class="grip" aria-label="Ziehen zum Verschieben">'+ico('<circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/>',18,2)+'</span>'+
-      '<span class="calno num">'+(off ? '\u2013' : (i+1))+'</span>'+
-      '<input class="inp fl" id="rflag-'+esc(R.id)+'" data-inp="rflag" data-r="'+esc(R.id)+'" value="'+esc(R.flag)+'" aria-label="Flagge">'+
-      '<input class="inp grow" id="rname-'+esc(R.id)+'" data-inp="rname" data-r="'+esc(R.id)+'" value="'+esc(R.name)+'" aria-label="Streckenname">'+
-      '<button type="button" class="switch" role="switch" data-act="race-sprint" data-r="'+esc(R.id)+'" aria-checked="'+(!!S.sprints[R.id])+'" aria-label="Sprint in '+esc(R.name)+'" title="Sprint"></button>'+
-      '<button type="button" class="iconbtn" style="width:36px" data-act="race-del" data-r="'+esc(R.id)+'" aria-label="Rennen löschen">'+ico(IC.trash,16)+'</button></div>';
-  }).join("")+'</div>'+
-    '<p class="small muted" style="margin:8px 0 0">Zum Verschieben eine Strecke lange gedrückt halten (oder am Griff links ziehen) und nach oben oder unten ziehen. Der Schalter aktiviert Sprint-Quali und Sprint.</p></div>');
-  h.push('</div>');
-  // Daten
-  h.push('<div class="stack">'+dataExportBlock()+dataImportBlock(false)+'</div>');
-  h.push('<div class="stack">');
-  h.push('<div class="card st" style="--i:6;display:flex;flex-direction:column;gap:12px">'+cardHead("Darstellung")+
+  }
+  if(k==="cal") h.push(calPage());
+  if(k==="data") h.push(dataExportBlock()+dataImportBlock(false));
+  if(k==="look"){
+h.push('<div class="card st" style="--i:0;display:flex;flex-direction:column;gap:12px">'+cardHead("Darstellung")+
     '<div class="field"><span class="lbl2">Farbschema</span><div class="seg" role="group" aria-label="Farbschema">'+segBtns("theme", APP.prefs.theme, [["system","Automatisch"],["dark","Dunkel"],["light","Hell"]])+'</div></div>'+
     '<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><span><b>Animationen</b><br><span class="small muted">Übergänge, Balken, Konfetti</span></span>'+
     '<button type="button" class="switch" role="switch" data-act="motion" aria-checked="'+APP.prefs.motion+'" aria-label="Animationen"></button></div></div>');
-  h.push('<div class="card st" style="--i:7;display:flex;flex-direction:column;gap:12px">'+cardHead("Spielstand")+
+  }
+  if(k==="save"){
+h.push('<div class="card st" style="--i:0;display:flex;flex-direction:column;gap:12px">'+cardHead("Spielstand")+
     '<div class="field"><label for="save-name">Name des Spielstands</label><input class="inp" id="save-name" data-inp="save-name" value="'+esc(SV.name)+'"></div>'+
     '<div class="row"><button type="button" class="btn danger grow" data-act="reset-res">Ergebnisse dieser Saison löschen</button>'+
     '<button type="button" class="btn danger grow" data-act="del-save">Spielstand löschen</button></div></div>');
-  h.push('</div></div>');
-  return h.join("");
+  }
+  return '<div class="stack">'+h.join("")+'</div>';
+}
+function calRow(R,i,off){
+  var id=esc(R.id), sp=!!S.sprints[R.id], done=!off && raceDriven(R.id);
+  return '<div class="calrow'+(off ? ' off' : '')+(sp ? ' sp' : '')+'" data-r="'+id+'">'+
+    '<span class="grip" aria-label="Ziehen zum Verschieben">'+ico('<circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/>',18,2)+'</span>'+
+    '<span class="calno num'+(done ? ' done' : '')+'" title="'+(done ? 'gefahren' : '')+'">'+(off ? '\u2013' : (i+1))+'</span>'+
+    '<input class="inp fl" id="rflag-'+id+'" data-inp="rflag" data-r="'+id+'" value="'+esc(R.flag)+'" aria-label="Flagge">'+
+    '<input class="inp calname" id="rname-'+id+'" data-inp="rname" data-r="'+id+'" value="'+esc(R.name)+'" aria-label="Streckenname">'+
+    '<button type="button" class="spchip" data-act="race-sprint" data-r="'+id+'" aria-pressed="'+sp+'" aria-label="Sprint in '+esc(R.name)+'">Sprint</button>'+
+    '<button type="button" class="iconbtn caldel" data-act="race-del" data-r="'+id+'" aria-label="'+esc(R.name)+' löschen">'+ico(IC.trash,16)+'</button></div>';
+}
+function calPage(){
+  var n=S.races.length, spare=S.spare||[], sp=S.races.filter(function(R){ return S.sprints[R.id]; }).length;
+  return '<div class="card st calhead" style="--i:0">'+
+    '<div class="calstat"><span><b class="num">'+n+'</b>Rennen</span><span class="red"><b class="num">'+sp+'</b>Sprints</span><span><b class="num">'+drivenCount()+'</b>gefahren</span></div>'+
+    '<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><span><b>Anzahl Rennen</b><br><span class="small muted">Weniger Rennen? Die letzten wandern in die Reserve.</span></span>'+
+    '<span class="stepper"><button type="button" class="iconbtn" data-act="race-count" data-v="-1" aria-label="Ein Rennen weniger"'+(n<=1 ? ' disabled' : '')+'>'+ico('<path d="M5 12h14"/>',18,2.6)+'</button>'+
+    '<input class="inp n" id="race-count" type="number" inputmode="numeric" min="1" max="40" value="'+n+'" data-chg="race-count" aria-label="Anzahl Rennen">'+
+    '<button type="button" class="iconbtn" data-act="race-count" data-v="1" aria-label="Ein Rennen mehr">'+ico(IC.plus,18,2.6)+'</button></span></div></div>'+
+    '<div class="card st calcard" style="--i:1">'+cardHead("Reihenfolge", "lange drücken &amp; ziehen")+
+    '<div class="calsort" id="calsort">'+S.races.concat(spare).map(function(R,i){
+      return (i===n ? '<div class="caldiv">Reserve · nicht im Kalender<span>hochziehen oder Anzahl erhöhen</span></div>' : '')+calRow(R,i,i>=n);
+    }).join("")+'</div>'+
+    '<button type="button" class="btn wide" data-act="race-count" data-v="1" style="margin-top:10px">'+ico(IC.plus,18)+' '+(spare.length ? esc(spare[0].name)+' wieder aufnehmen' : 'Strecke hinzufügen')+'</button></div>'+
+    '<p class="small muted" style="margin:0 4px">Flagge und Name antippen zum Ändern. „Sprint“ schaltet Sprint-Quali und Sprint für das Wochenende ein. Grüne Nummer = schon gefahren.</p>';
 }
 function dataExportBlock(){
   return '<div class="card st" style="--i:4;display:flex;flex-direction:column;gap:10px">'+cardHead("Daten & Sync", lastSaved ? "gespeichert "+stamp(lastSaved) : "")+
@@ -1731,7 +1785,8 @@ function setRaceCount(n){
   function block(e){ if(drag) e.preventDefault(); }
   document.addEventListener("touchmove", block, {passive:false});
   function begin(row, y){
-    var rs=rows(), h=row.getBoundingClientRect().height+0;
+    var rs=rows(), h=row.getBoundingClientRect().height;
+    if(rs.length>1) h=Math.abs(rs[1].getBoundingClientRect().top-rs[0].getBoundingClientRect().top)||h;
     drag={row:row, rows:rs, from:rs.indexOf(row), to:rs.indexOf(row), y0:y, h:h};
     row.classList.add("dragging");
     document.getElementById("calsort").classList.add("sorting");
@@ -2249,6 +2304,8 @@ document.addEventListener("click", function(e){
   var a=el.getAttribute("data-act"), v=el.getAttribute("data-v");
   switch(a){
     case "nav": go(v); break;
+    case "setp-go": ui.setp=v; go("set"); break;
+    case "setp": ui.setp=v||null; window.scrollTo(0,0); render(true); break;
     case "wmode": ui.wMode=v; saveUi(); refresh(); break;
     case "lg": { var m=el.getAttribute("data-mode"), k=el.getAttribute("data-k"); ui.hidden[m]=ui.hidden[m]||{}; ui.hidden[m][k]=!ui.hidden[m][k]; refresh(); if(SH && SH.type==="chart"){ SH.keepScroll=true; renderSheet(); } break; }
     case "chart-full": SH={type:"chart", id:el.getAttribute("data-chart"), title:(el.closest(".chead").querySelector("h2")||{}).textContent}; showSheet(); break;
@@ -2329,7 +2386,7 @@ document.addEventListener("click", function(e){
       S.dTeam=S.dTeam.map(function(x){ return x>tk ? x-1 : x; });
       Object.keys(S.power).forEach(function(rid){ S.power[rid].splice(tk,1); });
       touch(); refresh(); break; }
-    case "race-sprint": { var rid=el.getAttribute("data-r"); S.sprints[rid]=!S.sprints[rid]; el.setAttribute("aria-checked", S.sprints[rid]); touch(); break; }
+    case "race-sprint": { var rid=el.getAttribute("data-r"); S.sprints[rid]=!S.sprints[rid]; el.setAttribute(el.classList.contains("spchip") ? "aria-pressed" : "aria-checked", S.sprints[rid]); var row=el.closest(".calrow"); if(row) row.classList.toggle("sp", S.sprints[rid]); touch(); break; }
     case "race-move": { var ri=raceIndex(el.getAttribute("data-r")), to=ri+(+v); if(to>=0 && to<S.races.length){ var tmp=S.races[ri]; S.races[ri]=S.races[to]; S.races[to]=tmp; touch(); refresh(); } break; }
     case "race-count": setRaceCount(S.races.length+(+v)); break;
     case "race-add": { var nid="r"+(S.nextId++); while(S.res[nid]) nid="r"+(S.nextId++); S.races.push({id:nid, flag:"", name:"Rennen "+(S.races.length+1)}); S.res[nid]=blankSession(); S.sprints[nid]=false; touch(); refresh(); break; }
@@ -2485,6 +2542,7 @@ if(NATIVE){
   }
   N.App.addListener("backButton", function(){
     if(SH){ closeSheet(); return; }
+    if(ui.view==="set" && ui.setp && !setWide()){ ui.setp=null; render(true); return; }
     if(ui.view!=="standings"){ go("standings"); return; }
     N.App.minimizeApp ? N.App.minimizeApp() : N.App.exitApp();
   });

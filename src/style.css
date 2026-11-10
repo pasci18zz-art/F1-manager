@@ -495,14 +495,52 @@ table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))
 .dnum.sm{min-width:24px;height:20px;padding:0 4px;border-radius:6px;font-size:12px;margin-right:6px;vertical-align:1px}
 .brow .lbl{width:138px}
 .li.cmini{min-height:48px;padding-block:6px}
-.calrow{gap:6px}
-.calrow .inp.fl{width:46px;font-size:18px}
-.calrow .calno{width:18px}
 
 /* Kalender: ausgegraute Strecken */
 .calrow.off{opacity:.45}
 .calrow.off.dragging{opacity:1}
-.caldiv{font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;padding:12px 0 4px;border-top:2px dashed var(--line-2);margin-top:6px}
+.caldiv{font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;padding:14px 4px 6px;border-top:2px dashed var(--line-2);margin-top:8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.caldiv span{text-transform:none;letter-spacing:0;font-weight:500}
+/* Kalender neu: Zeilen als kleine Kacheln */
+.calsort{display:flex;flex-direction:column;gap:6px}
+.calrow{display:flex;align-items:center;gap:6px;padding:4px 6px 4px 0;border-radius:14px;background:var(--card-2);border:1px solid transparent}
+.calrow.sp{box-shadow:inset 3px 0 0 #E8002D}
+.calrow .calno{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;font:800 15px var(--display);color:var(--ink-2);background:var(--card);flex:0 0 auto}
+.calrow .calno.done{background:color-mix(in srgb,#2FD47A 22%,var(--card));color:var(--ink)}
+.calrow .inp.fl{width:42px;height:38px;font-size:20px;padding:0;background:transparent;border-color:transparent}
+.calrow .calname{flex:1;min-width:0;height:38px;background:transparent;border-color:transparent;font-weight:600;padding-inline:6px}
+.calrow .inp.fl:focus,.calrow .calname:focus{background:var(--card);border-color:var(--line-2)}
+.spchip{flex:0 0 auto;border:1.5px solid var(--line-2);background:transparent;color:var(--ink-3);border-radius:999px;height:30px;padding:0 10px;font:800 12px var(--display);text-transform:uppercase;letter-spacing:.05em;transition:background .2s,color .2s,border-color .2s}
+.spchip[aria-pressed="true"]{background:#E8002D;border-color:#E8002D;color:#fff}
+.calrow .caldel{width:34px;height:34px;color:var(--ink-3)}
+.calrow.off .spchip,.calrow.off .caldel{display:none}
+.calrow.dragging{background:var(--card)}
+.calstat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.calstat span{display:flex;flex-direction:column;align-items:center;background:var(--card-2);border-radius:14px;padding:10px 4px;font-size:12px;color:var(--ink-3);font-weight:600}
+.calstat b{font:800 28px/1 var(--display);color:var(--ink)}
+.calstat .red b{color:#E8002D}
+@media (max-width:380px){.spchip{padding:0 7px;font-size:11px}.calrow .caldel{width:28px}}
+/* Einstellungen: Übersicht + Unterseiten */
+.setmenu{display:flex;flex-direction:column;gap:14px}
+.sethero{background:linear-gradient(135deg,var(--accent-soft),var(--card) 70%)}
+.sethero-t{font:800 30px/1.05 var(--display);text-transform:uppercase;margin-top:2px}
+.sethero-s{color:var(--ink-2);font-weight:600}
+.sethero-k{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.sethero-k span{display:flex;flex-direction:column;font-size:11px;color:var(--ink-3);font-weight:600}
+.sethero-k b{font:800 22px/1 var(--display);color:var(--ink)}
+.setgh{font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin:0 6px 6px}
+.setlist{padding:4px 0;overflow:hidden}
+.setitem{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;color:var(--ink);text-align:left;padding:10px 14px;min-height:60px;font:inherit;position:relative;transition:background .2s}
+.setitem+.setitem::before{content:"";position:absolute;left:62px;right:0;top:0;border-top:1px solid var(--line)}
+.setitem:active,.setitem.on{background:var(--card-2)}
+.setitem .grow{display:flex;flex-direction:column;min-width:0;flex:1}
+.setitem .grow .small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.setic{width:36px;height:36px;border-radius:11px;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.setchev{color:var(--ink-3)}
+.setback{border:0;background:none;color:var(--accent);font:700 16px var(--body,inherit);display:flex;align-items:center;gap:2px;padding:6px 0;margin-bottom:2px}
+.settitle{font:800 34px/1 var(--display);text-transform:uppercase;margin:0 0 12px}
+.setsplit{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:18px;align-items:start}
+.setsplit .setmenu{position:sticky;top:12px}
 /* Bemerkungen */
 .memoseg{overflow-x:auto;scrollbar-width:none}
 .memoseg button{white-space:nowrap;min-width:max-content;padding-inline:10px}
