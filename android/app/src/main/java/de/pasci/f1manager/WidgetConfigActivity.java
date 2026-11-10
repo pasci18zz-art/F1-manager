@@ -36,7 +36,10 @@ public class WidgetConfigActivity extends Activity {
     private String bgMode = "glass";
     private TextView glassStatus;
     private static final int PICK_IMAGE = 41;
-    private boolean driversMode;
+    private int maxDrivers;
+    private boolean teamMode;
+    private int team = -1;
+    private LinearLayout teamBox;
     private LinearLayout driverBox;
     private TextView driverTitle;
     private int ink, sub, bg, card, accent, line;
@@ -50,7 +53,10 @@ public class WidgetConfigActivity extends Activity {
         if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return; }
 
         data = WidgetData.load(this);
-        driversMode = BaseWidget.forId(this, widgetId) instanceof DriversWidget;
+        BaseWidget kindW = BaseWidget.forId(this, widgetId);
+        maxDrivers = kindW.maxDrivers();
+        teamMode = kindW.needTeam();
+        team = WidgetData.teamOf(this, widgetId);
         season = WidgetData.seasonOf(this, widgetId);
         theme = WidgetData.themeOf(this, widgetId);
         bgMode = WidgetGlass.modeOf(this, widgetId);
@@ -98,7 +104,17 @@ public class WidgetConfigActivity extends Activity {
             }
             root.addView(rg);
 
-            if (driversMode) {
+            if (teamMode) {
+                root.addView(section("Team"));
+                teamBox = new LinearLayout(this);
+                teamBox.setOrientation(LinearLayout.VERTICAL);
+                teamBox.setBackground(rounded(card, 16));
+                teamBox.setPadding(dp(8), dp(4), dp(8), dp(4));
+                root.addView(teamBox);
+                buildTeams();
+            }
+
+            if (maxDrivers > 0) {
                 driverTitle = section("Fahrer");
                 root.addView(driverTitle);
                 driverBox = new LinearLayout(this);
@@ -170,7 +186,7 @@ public class WidgetConfigActivity extends Activity {
     private void addSeason(RadioGroup rg, String id, String label, String info) {
         RadioButton rb = radio(info == null || info.isEmpty() ? label : label + "  ·  " + info);
         rb.setChecked(id.equals(season));
-        rb.setOnClickListener(v -> { season = id; chosen.clear(); if (driverBox != null) buildDrivers(); });
+        rb.setOnClickListener(v -> { season = id; chosen.clear(); if (driverBox != null) buildDrivers(); if (teamBox != null) buildTeams(); });
         rg.addView(rb);
     }
 
@@ -195,26 +211,51 @@ public class WidgetConfigActivity extends Activity {
             cb.setChecked(chosen.contains(idx));
             cb.setTag(idx);
             cb.setOnCheckedChangeListener((b, on) -> {
+                if (on && maxDrivers == 1) { chosen.clear(); for (CheckBox o : boxes) if (o != b) o.setChecked(false); }
                 if (on && !chosen.contains(idx)) chosen.add(idx);
                 if (!on) chosen.remove(Integer.valueOf(idx));
-                for (CheckBox o : boxes) o.setEnabled(o.isChecked() || chosen.size() < 3);
+                for (CheckBox o : boxes) o.setEnabled(o.isChecked() || chosen.size() < maxDrivers);
                 updateDriverTitle();
             });
             boxes.add(cb);
             driverBox.addView(cb);
         }
-        for (CheckBox o : boxes) o.setEnabled(o.isChecked() || chosen.size() < 3);
+        for (CheckBox o : boxes) o.setEnabled(o.isChecked() || chosen.size() < maxDrivers);
     }
 
     private void updateDriverTitle() {
-        if (driverTitle != null) driverTitle.setText(("Fahrer · " + chosen.size() + " von 3 gewählt").toUpperCase());
+        if (driverTitle == null) return;
+        String hint = chosen.isEmpty() ? "ohne Auswahl: automatisch" : chosen.size() + " von " + maxDrivers + " gewählt";
+        driverTitle.setText(((maxDrivers == 1 ? "Fahrer" : "Fahrer (bis " + maxDrivers + ")") + " · " + hint).toUpperCase());
+    }
+
+    private void buildTeams() {
+        teamBox.removeAllViews();
+        JSONObject s = WidgetData.season(data, season);
+        JSONArray ts = s == null ? null : s.optJSONArray("teams");
+        RadioGroup g = new RadioGroup(this);
+        RadioButton auto = radio("Automatisch (Team deines Fahrers / Spitzenreiter)");
+        auto.setChecked(team < 0);
+        auto.setOnClickListener(v -> team = -1);
+        g.addView(auto);
+        if (ts != null) for (int i = 0; i < ts.length(); i++) {
+            JSONObject t = ts.optJSONObject(i);
+            if (t == null) continue;
+            int tid = t.optInt("t");
+            RadioButton rb = radio(t.optString("name") + "   P" + t.optInt("rank") + " · " + t.optInt("pts") + " Pkt");
+            rb.setButtonTintList(ColorStateList.valueOf(WidgetData.color(t.optString("col"), accent)));
+            rb.setChecked(tid == team);
+            rb.setOnClickListener(v -> team = tid);
+            g.addView(rb);
+        }
+        teamBox.addView(g);
     }
 
     private void done() {
         if (data != null) {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < chosen.size(); i++) { if (i > 0) sb.append(','); sb.append(chosen.get(i)); }
-            WidgetData.save(this, widgetId, season, sb.toString(), theme);
+            WidgetData.save(this, widgetId, season, sb.toString(), theme, team);
             WidgetGlass.setMode(this, widgetId, bgMode);
         }
         BaseWidget.forId(this, widgetId).update(this, AppWidgetManager.getInstance(this), widgetId);

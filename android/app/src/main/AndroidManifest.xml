@@ -25,23 +25,125 @@
         </activity>
 
 <!-- Homescreen-Widgets -->
-        <receiver android:name=".Top3SmallWidget" android:label="@string/w_small" android:exported="true">
+        <receiver android:name=".PlaceWidget" android:label="@string/wl_place" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_top3_small_info" />
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_place_info" />
         </receiver>
-        <receiver android:name=".Top3LargeWidget" android:label="@string/w_large" android:exported="true">
+        <receiver android:name=".Next1Widget" android:label="@string/wl_next1" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_top3_large_info" />
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_next1_info" />
         </receiver>
-        <receiver android:name=".DriversWidget" android:label="@string/w_drivers" android:exported="true">
+        <receiver android:name=".LeaderWidget" android:label="@string/wl_leader" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_drivers_info" />
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_leader_info" />
+        </receiver>
+        <receiver android:name=".DriverWidget" android:label="@string/wl_driver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_driver_info" />
+        </receiver>
+        <receiver android:name=".RivalWidget" android:label="@string/wl_rival" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_rival_info" />
+        </receiver>
+        <receiver android:name=".ProgressWidget" android:label="@string/wl_progress" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_progress_info" />
+        </receiver>
+        <receiver android:name=".CalendarWidget" android:label="@string/wl_calendar" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_calendar_info" />
+        </receiver>
+        <receiver android:name=".Top3CompactWidget" android:label="@string/wl_top3c" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_top3c_info" />
+        </receiver>
+        <receiver android:name=".Next2Widget" android:label="@string/wl_next2" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_next2_info" />
+        </receiver>
+        <receiver android:name=".DuelWidget" android:label="@string/wl_duel" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_duel_info" />
+        </receiver>
+        <receiver android:name=".TeamWidget" android:label="@string/wl_team" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_team_info" />
+        </receiver>
+        <receiver android:name=".Top3SmallWidget" android:label="@string/wl_top3" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_top3_info" />
+        </receiver>
+        <receiver android:name=".Top3LargeWidget" android:label="@string/wl_podium" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_podium_info" />
+        </receiver>
+        <receiver android:name=".DriversWidget" android:label="@string/wl_mine" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_mine_info" />
+        </receiver>
+        <receiver android:name=".ConstructorsWidget" android:label="@string/wl_constructors" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_constructors_info" />
+        </receiver>
+        <receiver android:name=".LastRaceWidget" android:label="@string/wl_lastrace" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_lastrace_info" />
+        </receiver>
+        <receiver android:name=".Top5Widget" android:label="@string/wl_top5" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_top5_info" />
+        </receiver>
+        <receiver android:name=".StandingsWidget" android:label="@string/wl_top8" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_top8_info" />
+        </receiver>
+        <receiver android:name=".GraphWidget" android:label="@string/wl_graph" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_graph_info" />
+        </receiver>
+        <receiver android:name=".DashWidget" android:label="@string/wl_dash" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_dash_info" />
         </receiver>
         <activity android:name=".WidgetConfigActivity" android:exported="true" android:theme="@style/AppTheme.NoActionBar" android:label="Widget einrichten">
             <intent-filter>

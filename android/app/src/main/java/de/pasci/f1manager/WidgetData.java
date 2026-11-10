@@ -58,8 +58,11 @@ final class WidgetData {
     static String driversOf(Context ctx, int id) { return cfg(ctx).getString("drivers_" + id, ""); }
     static String themeOf(Context ctx, int id) { return cfg(ctx).getString("theme_" + id, "app"); }
 
-    static void save(Context ctx, int id, String season, String drivers, String theme) {
+    static int teamOf(Context ctx, int id) { return cfg(ctx).getInt("team_" + id, -1); }
+
+    static void save(Context ctx, int id, String season, String drivers, String theme, int team) {
         cfg(ctx).edit()
+            .putInt("team_" + id, team)
             .putString("season_" + id, season)
             .putString("drivers_" + id, drivers)
             .putString("theme_" + id, theme)
@@ -67,7 +70,7 @@ final class WidgetData {
     }
 
     static void remove(Context ctx, int id) {
-        cfg(ctx).edit().remove("season_" + id).remove("drivers_" + id).remove("theme_" + id).apply();
+        cfg(ctx).edit().remove("season_" + id).remove("drivers_" + id).remove("theme_" + id).remove("team_" + id).apply();
     }
 
     /** Dunkel oder hell: Widget-Einstellung, sonst wie in der App, sonst wie das Handy. */

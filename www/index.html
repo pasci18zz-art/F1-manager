@@ -934,11 +934,32 @@ function widgetSeason(sv, se){
     var drivers=st.map(function(r,j){
       var d=r.d, t=teamOfD(d), col=t ? t.color : "#888888", lastRes="\u2013";
       if(last>=0){ var v=S.res[S.races[last].id].r[d]; lastRes = v===DNF ? "DNF" : (isNum(v) ? "P"+v : "\u2013"); }
-      return {d:d, name:dname(d), short:(function(n){ var w=String(n).trim().split(/\s+/); return w[w.length-1]||n; })(dname(d)), num:String(dnum(d)||""), col:col, fg:inkOn(col), pts:r.pts, rank:j+1,
+      return {d:d, t:S.dTeam[d], name:dname(d), short:(function(n){ var w=String(n).trim().split(/\s+/); return w[w.length-1]||n; })(dname(d)), num:String(dnum(d)||""), col:col, fg:inkOn(col), pts:r.pts, rank:j+1,
         last:lastRes, trend: last>0 && prevRank[d] ? prevRank[d]-(j+1) : 0};
     });
+    // Teams mit Punkten, Autostärke, Duellen
+    var ts=teamStandings(), lp=latestPower(nx<0 ? S.races.length-1 : nx), firstP=null;
+    for(i=0;i<S.races.length && !firstP;i++){ var pw=S.power[S.races[i].id]; if(pw && pw.some(function(v){ return v!=null; })) firstP=pw; }
+    var teams=ts.map(function(r,j){
+      var t=S.teams[r.t], ds=r.drivers.slice().sort(function(a,b){ return st.findIndex(function(x){ return x.d===a; })-st.findIndex(function(x){ return x.d===b; }); });
+      var pv=lp && isNum(lp.vals[r.t]) ? lp.vals[r.t] : null, p0=firstP && isNum(firstP[r.t]) ? firstP[r.t] : null;
+      var o={t:r.t, name:t.name, short:shortOf(t), col:t.color, fg:inkOn(t.color), pts:r.pts, rank:j+1, power:pv, powerDelta:(pv!=null && p0!=null) ? pv-p0 : null, drivers:ds};
+      if(ds.length>=2){ o.qduel=h2h(ds[0],ds[1],"q"); o.rduel=h2h(ds[0],ds[1],"r"); }
+      return o;
+    });
+    // Kalender: Flagge, Kürzel, Sprint, Hauptrennen-Ergebnis je Fahrer, Wetter am Rennstart
+    var races=S.races.map(function(R){
+      var Rs=S.res[R.id], wx=normWx((Rs.wx||{}).r)||{};
+      return {flag:R.flag||"", code:raceCode(R), name:R.name, sprint:!!S.sprints[R.id], done:raceDriven(R.id),
+        res:Rs.r.slice(0,ND).map(function(v){ return v===DNF ? "DNF" : (isNum(v) ? v : null); }), wxA:wx.a||"", wxE:wx.e||""};
+    });
+    // Verlauf: kumulierte Punkte der Top 5
+    var cum=cumulative(), series=null;
+    if(cum){ series={labels:["Start"].concat(S.races.slice(0,cum.last+1).map(raceCode)), lines:st.slice(0,5).map(function(r){ return {d:r.d, vals:cum.per[r.d]}; })}; }
     return {id:se.id, label:sv.name+" \u00B7 "+se.name, title:se.name, round:S.races.length ? (done>=S.races.length ? "Saison beendet" : "Rennen "+done+" / "+S.races.length) : "",
-      next: nx>=0 ? S.races[nx].name : "", gap: st[1] ? st[0].pts-st[1].pts : 0, champ:!!champ, drivers:drivers};
+      done:done, total:S.races.length, nextIdx:nx, last:last,
+      next: nx>=0 ? S.races[nx].name : "", nextFlag: nx>=0 ? (S.races[nx].flag||"") : "", nextCode: nx>=0 ? raceCode(S.races[nx]) : "", nextSprint: nx>=0 ? !!S.sprints[S.races[nx].id] : false,
+      gap: st[1] ? st[0].pts-st[1].pts : 0, champ:!!champ, drivers:drivers, teams:teams, races:races, series:series};
   });
 }
 function pushWidgets(){
@@ -947,7 +968,7 @@ function pushWidgets(){
     var seasons=[];
     APP.saves.forEach(function(sv){ sv.seasons.forEach(function(se){ seasons.push(widgetSeason(sv, se)); }); });
     var cur = SV && S ? S.id : "";
-    var json=JSON.stringify({v:1, cur:cur, theme:APP.prefs.theme, seasons:seasons});
+    var json=JSON.stringify({v:2, cur:cur, theme:APP.prefs.theme, seasons:seasons});
     if(!widgetBridge && N.Capacitor && N.Capacitor.registerPlugin) widgetBridge=N.Capacitor.registerPlugin("WidgetBridge");
     N.Preferences.set({key:"f1m-widget", value:json}).then(function(){ return widgetBridge && widgetBridge.refresh(); }).catch(function(){});
   }catch(e){}

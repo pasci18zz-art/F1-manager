@@ -76,6 +76,16 @@ final class WidgetGlass {
 
     static void forget(Context ctx, int id) { prefs(ctx).edit().remove("bounds_" + id).remove("bg_" + id).apply(); }
 
+    /** Gespeicherte Position (nach Antippen) oder null. */
+    static Rect boundsOf(Context ctx, int id) {
+        String b = prefs(ctx).getString("bounds_" + id, null);
+        if (b == null) return null;
+        try {
+            String[] p = b.split(",");
+            return new Rect(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]), Integer.parseInt(p[3]));
+        } catch (Exception e) { return null; }
+    }
+
     private static Rect bounds(Context ctx, int id, int sw, int sh) {
         String b = prefs(ctx).getString("bounds_" + id, null);
         if (b != null) {
@@ -175,7 +185,7 @@ final class WidgetGlass {
             int ow = Math.max(2, b.width() / 2), oh = Math.max(2, b.height() / 2);
             Bitmap out = Bitmap.createBitmap(ow, oh, Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(out);
-            float r = 26 * dens / 2;
+            float r = Math.min(26f, Math.min(b.width(), b.height()) / dens * 0.28f) * dens / 2;
             RectF all = new RectF(0, 0, ow, oh);
             Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
             // abgerundete Form, darin der weichgezeichnete Ausschnitt
