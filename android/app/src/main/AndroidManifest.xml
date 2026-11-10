@@ -65,5 +65,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Kamera für "Foto machen" beim Auslesen von Ergebnissen und R&D-Charts -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Nur für das Milchglas der Widgets: Hintergrundbild lesen (Android verlangt dafür ab Version 13 „Zugriff auf alle Dateien“) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

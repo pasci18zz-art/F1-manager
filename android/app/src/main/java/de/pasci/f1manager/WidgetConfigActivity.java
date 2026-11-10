@@ -33,6 +33,9 @@ public class WidgetConfigActivity extends Activity {
     private String season = "cur";
     private final List<Integer> chosen = new ArrayList<>();
     private String theme = "app";
+    private String bgMode = "glass";
+    private TextView glassStatus;
+    private static final int PICK_IMAGE = 41;
     private boolean driversMode;
     private LinearLayout driverBox;
     private TextView driverTitle;
@@ -50,6 +53,7 @@ public class WidgetConfigActivity extends Activity {
         driversMode = BaseWidget.forId(this, widgetId) instanceof DriversWidget;
         season = WidgetData.seasonOf(this, widgetId);
         theme = WidgetData.themeOf(this, widgetId);
+        bgMode = WidgetGlass.modeOf(this, widgetId);
         for (String p : WidgetData.driversOf(this, widgetId).split(",")) {
             try { chosen.add(Integer.parseInt(p.trim())); } catch (Exception ignored) {}
         }
@@ -116,6 +120,35 @@ public class WidgetConfigActivity extends Activity {
                 tg.addView(rb);
             }
             root.addView(tg);
+
+            root.addView(section("Hintergrund"));
+            RadioGroup bgg = new RadioGroup(this);
+            String[][] bm = { { "glass", "Milchglas" }, { "tint", "Halbdurchsichtig" } };
+            for (String[] x : bm) {
+                RadioButton rb = radio(x[1]);
+                rb.setChecked(x[0].equals(bgMode));
+                rb.setOnClickListener(v -> bgMode = x[0]);
+                bgg.addView(rb);
+            }
+            bgg.setOrientation(RadioGroup.HORIZONTAL);
+            root.addView(bgg);
+            glassStatus = text("", 14, sub, false);
+            glassStatus.setPadding(dp(4), dp(6), 0, dp(8));
+            root.addView(glassStatus);
+            Button auto = smallButton("Hintergrundbild automatisch nutzen");
+            auto.setOnClickListener(v -> askAllFiles());
+            root.addView(auto);
+            Button pick = smallButton("Bild aus der Galerie wählen");
+            pick.setOnClickListener(v -> {
+                Intent it = new Intent(Intent.ACTION_GET_CONTENT);
+                it.setType("image/*");
+                startActivityForResult(Intent.createChooser(it, "Hintergrundbild wählen"), PICK_IMAGE);
+            });
+            root.addView(pick);
+            TextView tip = text("Tipp: Tippe das Widget nach dem Platzieren einmal an. Dann kennt es seine genaue Position und das Glas zeigt genau den Ausschnitt deines Hintergrunds.", 13, sub, false);
+            tip.setPadding(dp(4), dp(10), 0, 0);
+            root.addView(tip);
+            updateGlassStatus();
         }
 
         Button ok = new Button(this);
@@ -182,12 +215,67 @@ public class WidgetConfigActivity extends Activity {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < chosen.size(); i++) { if (i > 0) sb.append(','); sb.append(chosen.get(i)); }
             WidgetData.save(this, widgetId, season, sb.toString(), theme);
+            WidgetGlass.setMode(this, widgetId, bgMode);
         }
         BaseWidget.forId(this, widgetId).update(this, AppWidgetManager.getInstance(this), widgetId);
+        BaseWidget.updateAll(this);
         Intent r = new Intent();
         r.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId);
         setResult(RESULT_OK, r);
         finish();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        updateGlassStatus();
+    }
+
+    private void updateGlassStatus() {
+        if (glassStatus == null) return;
+        if (WidgetGlass.canReadWallpaper(this)) glassStatus.setText("Hintergrundbild: wird automatisch gelesen ✓");
+        else if (WidgetGlass.hasPicked(this)) glassStatus.setText("Hintergrundbild: eigenes Bild aus der Galerie ✓");
+        else glassStatus.setText("Für Milchglas braucht das Widget dein Hintergrundbild. Wähle unten, wie es das bekommt. Sonst wird es halbdurchsichtig.");
+    }
+
+    /** Ab Android 13 gibt Android das Hintergrundbild nur mit „Zugriff auf alle Dateien“ heraus. */
+    private void askAllFiles() {
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            try {
+                Intent it = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(it);
+            } catch (Exception e) {
+                startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+            }
+        } else {
+            requestPermissions(new String[] { android.Manifest.permission.READ_EXTERNAL_STORAGE }, 7);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data2) {
+        super.onActivityResult(req, res, data2);
+        if (req != PICK_IMAGE || res != RESULT_OK || data2 == null || data2.getData() == null) return;
+        try (java.io.InputStream in = getContentResolver().openInputStream(data2.getData())) {
+            android.graphics.BitmapFactory.Options op = new android.graphics.BitmapFactory.Options();
+            op.inSampleSize = 2;
+            android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeStream(in, null, op);
+            if (b != null) { WidgetGlass.savePicked(this, b); bgMode = "glass"; }
+        } catch (Exception ignored) {}
+        updateGlassStatus();
+    }
+
+    private Button smallButton(String label) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextColor(ink);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        b.setBackground(rounded(card, 14));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+        lp.topMargin = dp(8);
+        b.setLayoutParams(lp);
+        return b;
     }
 
     private RadioButton radio(String label) {

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/widget_bg_dark" android:padding="12dp">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent">
+  <ImageView android:id="@+id/glass" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:visibility="gone"/>
+<LinearLayout android:id="@+id/panel" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/widget_bg_dark" android:padding="12dp">
   <TextView android:id="@+id/empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#A9AEBD" android:fontFamily="sans-serif-condensed" android:maxLines="3" android:ellipsize="end" android:text="Öffne die App einmal, dann erscheint hier die Wertung." android:visibility="gone"/>
   <LinearLayout android:id="@+id/content" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal">
     <LinearLayout android:id="@+id/tile1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="0dp" android:layout_marginEnd="4dp" android:orientation="vertical" android:background="@drawable/widget_tile_dark" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingBottom="8dp">
@@ -49,3 +51,4 @@
     </LinearLayout>
   </LinearLayout>
 </LinearLayout>
+</FrameLayout>

@@ -45,7 +45,7 @@ abstract class BaseWidget extends AppWidgetProvider {
 
     @Override
     public void onDeleted(Context ctx, int[] ids) {
-        for (int id : ids) WidgetData.remove(ctx, id);
+        for (int id : ids) { WidgetData.remove(ctx, id); WidgetGlass.forget(ctx, id); }
     }
 
     void update(Context ctx, AppWidgetManager mgr, int id) {
@@ -53,9 +53,18 @@ abstract class BaseWidget extends AppWidgetProvider {
         JSONObject season = WidgetData.season(data, WidgetData.seasonOf(ctx, id));
         Theme t = new Theme(WidgetData.dark(ctx, id, data));
         RemoteViews v = new RemoteViews(ctx.getPackageName(), layout());
-        v.setInt(R.id.root, "setBackgroundResource", t.bg);
+        android.graphics.Bitmap glass = WidgetGlass.render(ctx, id, t.dark);
+        if (glass != null) {
+            v.setImageViewBitmap(R.id.glass, glass);
+            v.setViewVisibility(R.id.glass, View.VISIBLE);
+            v.setInt(R.id.panel, "setBackgroundResource", 0);
+        } else {
+            v.setViewVisibility(R.id.glass, View.GONE);
+            v.setInt(R.id.panel, "setBackgroundResource", t.bg);
+        }
         Intent open = new Intent(ctx, MainActivity.class);
-        open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        open.putExtra(MainActivity.EXTRA_WIDGET, id);
         PendingIntent pi = PendingIntent.getActivity(ctx, id, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         v.setOnClickPendingIntent(R.id.root, pi);
         JSONArray drivers = season == null ? null : season.optJSONArray("drivers");
