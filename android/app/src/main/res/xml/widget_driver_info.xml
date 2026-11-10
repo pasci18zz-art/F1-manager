@@ -6,7 +6,7 @@
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_canvas"
-    android:previewImage="@mipmap/ic_launcher"
+    android:previewImage="@drawable/wprev_driver"
     android:configure="de.pasci.f1manager.WidgetConfigActivity"
     android:widgetFeatures="reconfigurable"
     android:widgetCategory="home_screen"
