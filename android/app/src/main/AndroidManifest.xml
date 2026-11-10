@@ -24,6 +24,31 @@
 
         </activity>
 
+<!-- Homescreen-Widgets -->
+        <receiver android:name=".Top3SmallWidget" android:label="@string/w_small" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_top3_small_info" />
+        </receiver>
+        <receiver android:name=".Top3LargeWidget" android:label="@string/w_large" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_top3_large_info" />
+        </receiver>
+        <receiver android:name=".DriversWidget" android:label="@string/w_drivers" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_drivers_info" />
+        </receiver>
+        <activity android:name=".WidgetConfigActivity" android:exported="true" android:theme="@style/AppTheme.NoActionBar" android:label="Widget einrichten">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

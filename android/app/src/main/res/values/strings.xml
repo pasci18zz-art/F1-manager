@@ -4,4 +4,10 @@
     <string name="title_activity_main">F1 Manager</string>
     <string name="package_name">de.pasci.f1manager</string>
     <string name="custom_url_scheme">de.pasci.f1manager</string>
+    <string name="w_small">F1 Top 3 (3×2)</string>
+    <string name="w_large">F1 Top 3 mit Podium (4×2)</string>
+    <string name="w_drivers">F1 Meine Fahrer (4×2)</string>
+    <string name="w_desc_small">Die drei Führenden einer Saison</string>
+    <string name="w_desc_large">Podium, Vorsprung und nächstes Rennen</string>
+    <string name="w_desc_drivers">Bis zu drei Fahrer deiner Wahl</string>
 </resources>

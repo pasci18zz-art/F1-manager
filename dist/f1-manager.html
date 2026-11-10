@@ -864,7 +864,7 @@ function saveLocal(){
     lastSaved=new Date(); storageOk=true;
   }catch(e){ storageOk=false; }
   // Die Kopie in den Android-Einstellungen ist nur die Rückfallebene: selten schreiben, beim Verlassen sofort
-  if(NATIVE){ prefBlob=blob; clearTimeout(prefT); prefT=setTimeout(savePrefs, 8000); }
+  if(NATIVE){ prefBlob=blob; clearTimeout(prefT); prefT=setTimeout(savePrefs, 8000); scheduleWidgets(); }
   showBanner();
 }
 function flush(){ clearTimeout(saveT); saveLocal(); savePrefs(); }
@@ -898,6 +898,43 @@ function showBanner(){
     '<div class="banner">Dieses Gerät speichert gerade nichts dauerhaft. Sichere deine Daten unter Einstellungen → Daten & Sync als Datei oder Text.</div>';
 }
 function stamp(d){ return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); }
+
+/* ================= Homescreen-Widgets ================= */
+/* Die App rechnet die Wertung aller Saisons vor und legt sie klein für die Android-Widgets ab. */
+var widgetT=null, widgetBridge=null;
+function scheduleWidgets(){ clearTimeout(widgetT); widgetT=setTimeout(pushWidgets, 1500); }
+function widgetSeason(sv, se){
+  return withSeason(se, function(){
+    var st=standings(), last=-1, i;
+    for(i=0;i<S.races.length;i++) if(raceDriven(S.races[i].id)) last=i;
+    var prevRank={};
+    if(last>=0){
+      var cut={}; for(var k in se) cut[k]=se[k];
+      cut.races=se.races.slice(0,last);
+      withSeason(cut, function(){ standings().forEach(function(r,j){ prevRank[r.d]=j+1; }); });
+    }
+    var done=drivenCount(), nx=nextRaceIdx(), champ=champOf(se);
+    var drivers=st.map(function(r,j){
+      var d=r.d, t=teamOfD(d), col=t ? t.color : "#888888", lastRes="\u2013";
+      if(last>=0){ var v=S.res[S.races[last].id].r[d]; lastRes = v===DNF ? "DNF" : (isNum(v) ? "P"+v : "\u2013"); }
+      return {d:d, name:dname(d), short:(function(n){ var w=String(n).trim().split(/\s+/); return w[w.length-1]||n; })(dname(d)), num:String(dnum(d)||""), col:col, fg:inkOn(col), pts:r.pts, rank:j+1,
+        last:lastRes, trend: last>0 && prevRank[d] ? prevRank[d]-(j+1) : 0};
+    });
+    return {id:se.id, label:sv.name+" \u00B7 "+se.name, title:se.name, round:S.races.length ? (done>=S.races.length ? "Saison beendet" : "Rennen "+done+" / "+S.races.length) : "",
+      next: nx>=0 ? S.races[nx].name : "", gap: st[1] ? st[0].pts-st[1].pts : 0, champ:!!champ, drivers:drivers};
+  });
+}
+function pushWidgets(){
+  if(!NATIVE) return;
+  try{
+    var seasons=[];
+    APP.saves.forEach(function(sv){ sv.seasons.forEach(function(se){ seasons.push(widgetSeason(sv, se)); }); });
+    var cur = SV && S ? S.id : "";
+    var json=JSON.stringify({v:1, cur:cur, theme:APP.prefs.theme, seasons:seasons});
+    if(!widgetBridge && N.Capacitor && N.Capacitor.registerPlugin) widgetBridge=N.Capacitor.registerPlugin("WidgetBridge");
+    N.Preferences.set({key:"f1m-widget", value:json}).then(function(){ return widgetBridge && widgetBridge.refresh(); }).catch(function(){});
+  }catch(e){}
+}
 
 /* Import: versteht diese App, die alte Datei (Spielstände) und die ganz alte Version (eine Saison) */
 function parseImport(txt){
@@ -2993,6 +3030,7 @@ if(NATIVE){
     N.App.minimizeApp ? N.App.minimizeApp() : N.App.exitApp();
   });
   N.App.addListener("pause", flush);
+  setTimeout(pushWidgets, 1200);
 }
 })();
 </script>
