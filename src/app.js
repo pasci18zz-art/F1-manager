@@ -213,7 +213,10 @@ function normSeason(x, idx){
     out.res[rid].memo=normMemo(src.memo);
     if(typeof src.fls==="number" && src.fls>=0 && src.fls<MAXD) out.res[rid].fls=src.fls;
     if(typeof src.flr==="number" && src.flr>=0 && src.flr<MAXD) out.res[rid].flr=src.flr;
+    var rp=cleanRep(src.rep); if(rp) out.res[rid].rep=rp;
   }
+  out.alias={};
+  if(x.alias && typeof x.alias==="object") Object.keys(x.alias).forEach(function(k){ var v=x.alias[k]; if(typeof v==="number" && v>=0 && v<MAXD) out.alias[k]=v; });
   out.power={};
   if(x.power && typeof x.power==="object") allR.forEach(function(R){
     var a=x.power[R.id];
@@ -973,7 +976,7 @@ function render(anim){
   lastIdx=idx;
   afterRender(anim);
 }
-function refresh(){ render(false); }
+function refresh(){ render(false); if(SH && (SH.type==="memo" || SH.type==="quali")){ SH.keepScroll=true; renderSheet(); } }
 /* Gleitende Markierung in allen Umschaltern, wie die Leiste unten */
 var SEGPREV={};
 function segInd(root){
@@ -1208,84 +1211,6 @@ function ensureRace(){
   else if(i>0 && !raceDone(S.races[i].id)) i=i-1;
   ui.race = i>=0 ? S.races[i].id : null;
 }
-function vRace(){
-  ensureRace();
-  if(!ui.race) return '<div class="card">'+emptyBox(IC.race,"Kein Rennkalender","Lege in den Einstellungen Rennen an.",'<button type="button" class="btn pri" data-act="setp-go" data-v="cal">Zu den Einstellungen</button>')+'</div>';
-  var id=ui.race, ri=raceIndex(id), R=S.races[ri], sess=sessionsOf(id);
-  if(sess.indexOf(ui.sess)<0) ui.sess="r";
-  var h=[];
-  h.push('<div class="chips st" style="--i:0" role="group" aria-label="Rennen wählen">'+S.races.map(function(x){
-    var done=raceDriven(x.id);
-    return '<button type="button" class="chip code'+(done ? ' done' : '')+'" data-act="race" data-r="'+esc(x.id)+'" aria-pressed="'+(x.id===id)+'" title="'+esc(x.name)+'">'+
-      (x.flag ? '<span style="font-size:15px">'+esc(x.flag)+'</span>' : '')+esc(raceCode(x))+(done ? ico(IC.check,13,3) : '')+'</button>';
-  }).join("")+'</div>');
-  h.push('<div class="card gp st" style="--i:1">'+
-    '<button type="button" class="iconbtn" data-act="race-step" data-v="-1" aria-label="Vorheriges Rennen"'+(ri<=0 ? ' disabled' : '')+'>'+ico(IC.left,20,2.4)+'</button>'+
-    '<span class="fl" aria-hidden="true">'+esc(R.flag||"")+'</span>'+
-    '<div class="t"><div class="eyebrow">Rennen '+(ri+1)+' von '+S.races.length+(S.sprints[id] ? ' · Sprint-Wochenende' : '')+'</div><div class="n">'+esc(R.name)+'</div>'+
-    (function(){ var wx=S.res[id].wx||{}, out=sess.filter(function(k){ return normWx(wx[k]); }).map(function(k){ var w=normWx(wx[k]); return '<span class="wxs">'+esc(SESSSHORT[k])+' '+PH.map(function(p){ return w[p[0]] ? wxIcon(w[p[0]],14) : '<span class="wx">\u00B7</span>'; }).join("")+'</span>'; }); return out.length ? '<div class="wxrow">'+out.join("")+'</div>' : ''; })()+'</div>'+
-    '<button type="button" class="iconbtn" data-act="race-step" data-v="1" aria-label="Nächstes Rennen"'+(ri>=S.races.length-1 ? ' disabled' : '')+'>'+ico(IC.right,20,2.4)+'</button></div>');
-  h.push('<div class="cols"><div class="stack">'+weekendCard(id)+sessionCard(id, sess)+'</div><div class="stack">'+powerCard(id, ri)+entryCard(id)+'</div></div>');
-  return h.join("");
-}
-function weekendCard(id){
-  var rows=[];
-  for(var d=0; d<ND; d++){ var p=weekendPts(id,d); if(p.t>0) rows.push({d:d, p:p}); }
-  rows.sort(function(a,b){ return b.p.t-a.p.t || (num(S.res[id].r[a.d])||99)-(num(S.res[id].r[b.d])||99); });
-  if(!rows.length) return '<div class="card st" style="--i:2">'+cardHead("Punkte am Wochenende")+
-    emptyBox(IC.flag,"Noch nichts eingetragen","Ganz unten kannst du ein Ergebnis-Foto auslesen lassen oder Platz für Platz eintragen.")+'</div>';
-  var top=rows.slice(0,3), order=[1,0,2], h=['<div class="card st" style="--i:2">'+cardHead("Punkte am Wochenende", plural(rows.length,"Fahrer","Fahrer")+" mit Punkten")+'<div class="podium">'];
-  order.forEach(function(k){
-    var x=top[k]; if(!x) { h.push('<div></div>'); return; }
-    h.push('<button type="button" class="pd'+(k===0 ? ' p1' : '')+'" data-act="driver" data-d="'+x.d+'"><span class="rk">'+(k+1)+'.</span>'+dLogo(x.d, k===0 ? 50 : 40)+
-      '<span class="n">'+esc(dname(x.d))+'</span><span class="v num" data-cu="'+x.p.t+'">'+x.p.t+'</span></button>');
-  });
-  h.push('</div><div class="list">');
-  rows.forEach(function(x, i){
-    var p=x.p, b=[];
-    if(p.q) b.push('<span class="tagp a">Pole +'+p.q+'</span>');
-    if(p.s) b.push('<span class="tagp n">Sprint +'+p.s+'</span>');
-    if(p.r) b.push('<span class="tagp g">Rennen +'+p.r+'</span>');
-    if(p.fls || p.flr) b.push('<span class="tagp p">'+ico(IC.bolt,11,2.4)+' +'+(p.fls+p.flr)+'</span>');
-    h.push('<button type="button" class="li st" style="--i:'+(i+3)+';padding-inline:0" data-act="driver" data-d="'+x.d+'">'+dLogo(x.d,32)+
-      '<span class="who"><span class="n">'+esc(dname(x.d))+'</span><span class="brk" style="justify-content:flex-start;margin-top:3px">'+b.join("")+'</span></span><span class="val num" style="min-width:38px">'+p.t+'</span></button>');
-  });
-  h.push('</div></div>');
-  return h.join("");
-}
-function sessionCard(id, sess){
-  var k=ui.sess, R=S.res[id], arr=R[k], rows=[], dnfs=[], d;
-  for(d=0; d<ND; d++){ if(isNum(arr[d])) rows.push({d:d, p:arr[d]}); else if(arr[d]===DNF) dnfs.push(d); }
-  rows.sort(function(a,b){ return a.p-b.p; });
-  var lim = k==="r" ? 10 : (k==="s" ? 8 : 0), flD = k==="r" ? R.flr : (k==="s" ? R.fls : null);
-  var h=['<div class="card st" style="--i:3">'+cardHead("Ergebnisse")+'<div class="seg sm" role="group" aria-label="Session" style="margin-bottom:8px">'+
-    segBtns("sess", k, sess.map(function(s){ return [s, SESSSHORT[s]]; }))+'</div>'+wxLine(R, k)];
-  if(!rows.length && !dnfs.length){
-    h.push('<div class="empty small">'+esc(SESSLBL[k])+' noch nicht eingetragen.</div></div>');
-    return h.join("");
-  }
-  h.push('<div class="list">');
-  rows.forEach(function(x,i){
-    var extra=[];
-    if(k==="r"){
-      var g=null, q=R.q[x.d]; if(isNum(q)) g=q-x.p;
-      if(g) extra.push('<span class="tagp '+(g>0 ? 'g' : 'r')+'">'+(g>0 ? '▲ '+g : '▼ '+(-g))+'</span>');
-    }
-    if(k==="s" && R.sq[x.d]!=null && isNum(R.sq[x.d])){ var g2=R.sq[x.d]-x.p; if(g2) extra.push('<span class="tagp '+(g2>0?'g':'r')+'">'+(g2>0?'▲ '+g2:'▼ '+(-g2))+'</span>'); }
-    if(flD===x.d) extra.push('<span class="tagp p">'+ico(IC.bolt,11,2.4)+' Schnellste</span>');
-    var pts = k==="r" && x.p<=10 ? RACE_PTS[x.p] : (k==="s" && x.p<=8 ? cfg().sprint[x.p] : (k==="q" && x.p===1 && cfg().qualy ? cfg().qualy : 0));
-    h.push('<button type="button" class="li st" style="--i:'+(i+4)+';padding-inline:0" data-act="driver" data-d="'+x.d+'">'+
-      '<span class="pos '+(x.p===1 ? 'g' : x.p===2 ? 's' : x.p===3 ? 'b' : '')+'" style="width:34px">P'+x.p+'</span>'+dLogo(x.d,30)+
-      '<span class="who"><span class="n">'+esc(dname(x.d))+'</span><span class="m">'+esc((teamOfD(x.d)||{}).name||"")+'</span></span><span class="brk">'+extra.join("")+
-      (pts ? '<span class="tagp g">+'+pts+'</span>' : '')+'</span></button>');
-  });
-  dnfs.forEach(function(d2){
-    h.push('<div class="li" style="padding-inline:0"><span class="pos" style="width:34px;font-size:14px">–</span>'+dLogo(d2,30)+
-      '<span class="who"><span class="n">'+esc(dname(d2))+'</span></span><span class="tagp r">DNF</span></div>');
-  });
-  h.push('</div></div>');
-  return h.join("");
-}
 function wxLine(R, k){
   var w=normWx((R.wx||{})[k]);
   if(!w) return '<div class="wxline"><span class="muted">Wetter nicht eingetragen</span></div>';
@@ -1335,29 +1260,592 @@ function memoBlock(id){
   else h+='<textarea class="notes" data-inp="memo" data-k="'+t+'" placeholder="Notizen zu '+esc(SESSLBL[t])+'">'+esc(M[t]||"")+'</textarea>';
   return h+'</div>';
 }
-function powerCard(id, ri){
-  var lp=latestPower(ri);
-  if(!lp) return '';
-  var rows=S.teams.map(function(t,k){ return {t:t, k:k, v:lp.vals[k]}; }).filter(function(x){ return isNum(x.v); });
-  rows.sort(function(a,b){ return b.v-a.v; });
-  var hint = lp.race.id===id ? "für dieses Rennen" : "Stand: "+esc(lp.race.name);
-  return '<div class="card st" style="--i:2">'+cardHead("Autostärke vor dem GP", hint)+rows.map(function(x){
-    return '<div class="brow">'+logoHtml(x.t,28)+'<span class="lbl" style="width:auto;flex:0 1 110px">'+esc(x.t.name)+'</span><span class="bar"><i style="width:'+x.v+'%;background:'+x.t.color+'"></i></span><span class="v num">'+x.v+'</span></div>';
+/* ================= Rennen-Datei aus dem Mitschreib-Programm ================= */
+function wxFromText(t){
+  t=normName(t);
+  if(/stark|gewitter|sturm|heftig|unwetter/.test(t)) return "storm";
+  if(/regen|niesel|schauer|nass/.test(t)) return "rain";
+  if(/leicht bewolkt|heiter|wechsel|teilweise|aufgelockert/.test(t)) return "mixed";
+  if(/bewolkt|bedeckt|wolk/.test(t)) return "cloud";
+  return "sun";
+}
+function timeSec(s){
+  s=String(s||"").replace(/^\+/,"").trim(); if(!s) return null;
+  var p=s.split(":"), v=0;
+  for(var i=0;i<p.length;i++){ var n=parseFloat(p[i]); if(!isFinite(n)) return null; v=v*60+n; }
+  return v;
+}
+function fmtGap(v){
+  if(v==null || !isFinite(v)) return "";
+  if(v>=60){ var m=Math.floor(v/60); return "+"+m+":"+("0"+(v-m*60).toFixed(3)).slice(-6); }
+  return "+"+v.toFixed(3);
+}
+/* Liest die Text-Datei. Gibt {rep} oder {err} zurück. */
+function parseRaceFile(txt){
+  var L=String(txt||"").replace(/\r/g,"").replace(/\t/g,"    ").split("\n"), secs=[], cur={title:"", lines:[]}, i;
+  for(i=0;i<L.length;i++){
+    if(i+1<L.length && L[i].trim() && /^\s*[-=]{3,}\s*$/.test(L[i+1])){ secs.push(cur); cur={title:L[i].trim(), lines:[]}; i++; continue; }
+    cur.lines.push(L[i]);
+  }
+  secs.push(cur);
+  function sec(name){ for(var k=0;k<secs.length;k++) if(normName(secs[k].title).indexOf(name)===0) return secs[k].lines; return []; }
+  var head=null; secs.forEach(function(s){ if(!head && s.title) head=s; });
+  if(!head) return {err:"Das sieht nicht wie eine Rennen-Datei aus."};
+  var rep={v:1, kind:"r", track:"", me:"", at:"", laps:null, total:null, wx:[], rows:[], fl:null, ev:[], pos:null, st:[], lt:[], map:{}};
+  var tm=/^(.*?)\s*[-–]\s*(.+)$/.exec(head.title), kind=normName(tm ? tm[1] : head.title);
+  if(/quali/.test(kind)) return {err:"Das ist eine Qualifying-Datei. Die kann die App noch nicht lesen – schick mir ein Beispiel, dann baue ich das ein."};
+  if(/sprint/.test(kind)) rep.kind="s";
+  rep.track=tm ? tm[2].trim() : "";
+  if(rep.track && rep.track===rep.track.toUpperCase()) rep.track=rep.track.toLowerCase().replace(/(^|[\s-])(\S)/g, function(a,b,c){ return b+c.toUpperCase(); });
+  head.lines.forEach(function(l){
+    var m;
+    if((m=/^\s*Fahrer\s*:\s*(.+?)\s*$/i.exec(l))) rep.me=m[1];
+    else if((m=/^\s*Erstellt\s*:\s*(.+?)\s*$/i.exec(l))) rep.at=m[1];
+    else if((m=/^\s*Runden\s*:\s*(\d+)(?:\s*von\s*(\d+))?/i.exec(l))){ rep.laps=+m[1]; rep.total=m[2] ? +m[2] : +m[1]; }
+  });
+  // Namen, die sauber in Klammern-Zeilen stehen: "Name (Team)"
+  var known=[];
+  function addName(n){ n=n.trim(); if(n && known.indexOf(n)<0) known.push(n); }
+  sec("reifen").concat(sec("schnellste"), sec("ausfall")).forEach(function(l){
+    var m=/^\s{1,6}(\S.*?)\s+\(([^()]*)\)\s*$/.exec(l); if(m) addName(m[1]);
+    m=/^\s*(?:Runde\s+\d+\s*:\s*)?(\S.*?)\s+\(([^()]*)\)\s*-/.exec(l); if(m) addName(m[1]);
+  });
+  if(rep.me) addName(rep.me);
+  known.sort(function(a,b){ return b.length-a.length; });
+  function splitName(s){
+    s=s.trim();
+    for(var k=0;k<known.length;k++){ var n=known[k]; if(s===n || s.indexOf(n+" ")===0) return n; }
+    var p=s.split(/\s{2,}/); if(p.length>1) return p[0];
+    var w=s.split(" "); return w.length>1 ? w.slice(0,-1).join(" ") : s;
+  }
+  // Wetter
+  sec("wetter").forEach(function(l){
+    var m=/^\s*(Start|([\d:]+)\s*min)\s{2,}(.+?)(?:\s{2,}(?:Strecke\s+(-?\d+)\s*°?\s*C)?(?:,?\s*Luft\s+(-?\d+)\s*°?\s*C)?)?\s*$/i.exec(l);
+    if(!m) return;
+    rep.wx.push({t:m[2] ? m[2]+" min" : "Start", s:m[2] ? timeSec(m[2]) : 0, x:m[3].trim(), k:wxFromText(m[3]), tr:m[4]!=null ? +m[4] : null, air:m[5]!=null ? +m[5] : null});
+  });
+  // Endergebnis
+  sec("endergebnis").forEach(function(l){
+    var m=/^\s*(\d+)\s+(.+?)\s+(\d+)\s+(\S.*?)\s+(\d+:\d{2}\.\d+|[-–]+)\s+(\d+)\s+([SMHIW](?:-[SMHIW])*)?\s*(<--.*)?$/.exec(l);
+    if(!m) return;
+    var row={n:splitName(m[2]), pos:+m[1], start:+m[3], txt:m[4].trim(), gap:null, lapped:0, dnf:false, lap:null, why:"", time:"", best:/\d/.test(m[5]) ? m[5] : "", ty:m[7]||""};
+    var t=row.txt, g;
+    if(/^\d+:\d{2}(:\d{2})?\.\d+$/.test(t)){ row.time=t; row.gap=0; }
+    else if((g=/^\+\s*(\d+)\s*Runde/i.exec(t))) row.lapped=+g[1];
+    else if(/^\+\s*[\d:.]+$/.test(t)) row.gap=timeSec(t);
+    else if((g=/Runde\s*(\d+)\s*:\s*(.*)$/i.exec(t))){ row.dnf=true; row.lap=+g[1]; row.why=g[2]; }
+    else { row.dnf=true; row.why=t; }
+    if(m[8]) rep.me=row.n;
+    rep.rows.push(row);
+  });
+  if(rep.rows.length<2) return {err:"Im Abschnitt „Endergebnis“ wurden keine Fahrer gefunden."};
+  rep.rows.sort(function(a,b){ return a.pos-b.pos; });
+  function rowOf(n){ for(var k=0;k<rep.rows.length;k++) if(rep.rows[k].n===n) return rep.rows[k]; return null; }
+  // Schnellste Runde
+  sec("schnellste").forEach(function(l){
+    var m=/^\s*(\S.*?)\s+\([^()]*\)\s*-\s*(\d+:\d{2}\.\d+)(?:\s+in Runde\s+(\d+))?(?:\s+auf\s+([SMHIW]))?/i.exec(l);
+    if(m && !rep.fl) rep.fl={n:m[1], t:m[2], lap:m[3] ? +m[3] : null, c:m[4]||""};
+  });
+  // Ausfälle
+  sec("ausfall").forEach(function(l){
+    var m=/Runde\s+(\d+)\s*:\s*(\S.*?)\s+\([^()]*\)\s*-\s*(.+?)(?:,\s*lag auf Platz\s+(\d+))?\s*$/i.exec(l);
+    if(!m) return;
+    var r=rowOf(m[2]); if(!r) return;
+    r.dnf=true; r.lap=+m[1]; r.why=m[3]; if(m[4]) r.at=+m[4];
+  });
+  // Ereignisse
+  sec("ereignis").forEach(function(l){
+    var m=/Runde\s+(\d+)\s*\(([\d:]+)\s*min\)\s*:\s*(.+?)\s*$/i.exec(l);
+    if(m) rep.ev.push({l:+m[1], s:timeSec(m[2]), x:m[3]});
+  });
+  // Positionen nach Runden
+  var pl=sec("positionen"), laps=null;
+  pl.forEach(function(l){
+    if(!l.trim()) return;
+    if(!laps && /^[\s\d]+$/.test(l)){ laps=l.trim().split(/\s+/).map(Number); return; }
+    if(!laps) return;
+    var name=null, rest="";
+    for(var k=0;k<known.length;k++){ var n=known[k], j=l.indexOf(n); if(j>=0 && !l.slice(0,j).trim()){ name=n; rest=l.slice(j+n.length); break; } }
+    if(!name){ var m=/^\s*(.+?)((?:\s+\d+)*)\s*$/.exec(l); if(!m) return; name=m[1]; rest=m[2]; }
+    var p=rest.trim() ? rest.trim().split(/\s+/).map(Number) : [];
+    if(!rep.pos) rep.pos={laps:laps, rows:[]};
+    rep.pos.rows.push({n:name, p:p});
+  });
+  // Reifen und Boxenstopps
+  var curSt=null;
+  sec("reifen").forEach(function(l){
+    var m=/^\s{1,6}(\S.*?)\s+\([^()]*\)\s*$/.exec(l);
+    if(m){ curSt={n:m[1], s:[], pit:[]}; rep.st.push(curSt); return; }
+    if(!curSt) return;
+    if((m=/Runde\s+(\d+)(?:\s*-\s*(\d+))?\s*,\s*([SMHIW])\b[^,]*(?:,\s*Verschlei\S*\s+(\d+)\s*%)?(?:,\s*([\d.]+)\s*%\s*pro Runde)?(?:,\s*Schnitt\s+([\d:.]+))?/i.exec(l)))
+      curSt.s.push({a:+m[1], b:m[2] ? +m[2] : +m[1], c:m[3], w:m[4]!=null ? +m[4] : null, pr:m[5]!=null ? +m[5] : null, avg:m[6]||""});
+    else if((m=/Boxenstopp in Runde\s+(\d+)(?:,\s*Standzeit\s+([\d.]+)\s*s)?(?:,\s*Boxengasse\s+([\d.]+)\s*s)?/i.exec(l)))
+      curSt.pit.push({l:+m[1], st:m[2]!=null ? +m[2] : null, lane:m[3]!=null ? +m[3] : null});
+  });
+  // Rundenzeiten
+  var curL=null;
+  sec("rundenzeit").forEach(function(l){
+    var m=/Runde\s+(\d+)\s*:\s*(\d+:\d{2}\.\d+)\s*(?:P(\d+))?\s*([SMHIW])?\s*(.*)$/i.exec(l);
+    if(m && curL){ curL.r.push({l:+m[1], t:m[2], p:m[3] ? +m[3] : null, c:m[4]||"", x:(m[5]||"").trim()}); return; }
+    var n=/^\s{1,6}(\S.*?)\s*$/.exec(l);
+    if(n && !/^Runde/i.test(n[1])){ curL={n:n[1], r:[]}; rep.lt.push(curL); }
+  });
+  rep.lt=rep.lt.filter(function(x){ return x.r.length; });
+  if(!rep.laps){ var mx=0; rep.rows.forEach(function(r){ if(!r.dnf) mx=1; }); rep.laps=rep.pos ? rep.pos.laps[rep.pos.laps.length-1] : (mx ? 1 : 1); rep.total=rep.laps; }
+  return {rep:rep};
+}
+
+/* Fahrer aus der Datei einem Fahrer der App zuordnen */
+function matchFileDriver(n){
+  var q=normName(n); if(!q) return null;
+  if(S.alias && S.alias[q]!=null && S.alias[q]<ND) return S.alias[q];
+  var names=[], d; for(d=0; d<ND; d++) names.push(normName(dname(d)));
+  var last=q.split(" ").pop(), hits;
+  function uniq(f){ hits=[]; for(var k=0;k<ND;k++) if(names[k] && f(names[k])) hits.push(k); return hits.length===1 ? hits[0] : null; }
+  var r=uniq(function(a){ return a===q; });
+  if(r==null) r=uniq(function(a){ return a.split(" ").pop()===last; });
+  if(r==null && last.length>=4) r=uniq(function(a){ return a.split(" ").some(function(w){ return w===last; }); });
+  if(r==null && q.length>=4) r=uniq(function(a){ return a.indexOf(q)>=0 || q.indexOf(a)>=0; });
+  return r;
+}
+function guessRaceFor(track){
+  var t=normName(track);
+  function hit(R){ var n=normName(R.name); return t && n && (n.indexOf(t)>=0 || t.indexOf(n)>=0 || normName(raceCode(R))===t.slice(0,3)); }
+  var cur=S.races[raceIndex(ui.race)];
+  if(cur && hit(cur)) return cur.id;
+  for(var i=0;i<S.races.length;i++) if(hit(S.races[i]) && !raceDriven(S.races[i].id)) return S.races[i].id;
+  for(i=0;i<S.races.length;i++) if(hit(S.races[i])) return S.races[i].id;
+  return ui.race;
+}
+function openRaceImport(){ SH={type:"rimp", step:1, text:""}; showSheet(); }
+function raceImportParse(){
+  var ta=$("rimp-text"); if(ta) SH.text=ta.value;
+  var r=parseRaceFile(SH.text);
+  if(r.err){ SH.err=r.err; SH.keepScroll=true; renderSheet(); return; }
+  var rep=r.rep, map={}, used={};
+  rep.rows.forEach(function(x){ var d=matchFileDriver(x.n); if(d!=null && !used[d]){ map[x.n]=d; used[d]=1; } else map[x.n]=null; });
+  if(rep.me && map[rep.me]==null){
+    for(var d=0; d<ND; d++){ var nm=normName(dname(d)); if((nm==="du" || nm==="ich") && !used[d]){ map[rep.me]=d; used[d]=1; break; } }
+  }
+  SH.rep=rep; SH.map=map; SH.rid=guessRaceFor(rep.track); SH.step=2; SH.err=""; renderSheet();
+}
+function sheetRaceImport(){
+  if(SH.step===1){
+    return {title:"Rennen-Datei einlesen", body:
+      '<p class="small muted" style="margin:0">Füge den Text aus deinem Mitschreib-Programm ein oder wähle die Datei. Die App trägt dann Ergebnis, schnellste Runde, Ausfälle und Wetter ein und merkt sich Rennverlauf, Reifen und Ereignisse.</p>'+
+      '<textarea class="notes" id="rimp-text" spellcheck="false" placeholder="RENNEN - MONZA&#10;==============&#10;…" style="min-height:180px;font:12px var(--mono)">'+esc(SH.text||"")+'</textarea>'+
+      (SH.err ? '<div class="banner" style="margin:0">'+esc(SH.err)+'</div>' : '')+
+      '<button type="button" class="btn" data-act="rimp-file">'+ico(IC.upload,18)+' Datei wählen</button>',
+      foot:'<button type="button" class="btn" data-act="sheet-close">Abbrechen</button><button type="button" class="btn pri" data-act="rimp-parse">Einlesen</button>'};
+  }
+  var rep=SH.rep, miss=0, fin=rep.rows.filter(function(x){ return !x.dnf; }).length;
+  rep.rows.forEach(function(x){ if(SH.map[x.n]==null) miss++; });
+  var R=S.races[raceIndex(SH.rid)], warn=R && rep.track && normName(R.name).indexOf(normName(rep.track))<0 && normName(rep.track).indexOf(normName(R.name))<0;
+  var body='<div class="rimp-sum"><span><b class="num">'+rep.rows.length+'</b>Fahrer</span><span><b class="num">'+(rep.laps||"–")+'</b>Runden</span><span><b class="num">'+rep.wx.length+'</b>Wetter</span><span><b class="num">'+(rep.rows.length-fin)+'</b>Ausfälle</span></div>'+
+    '<div class="field"><label for="rimp-race">Für welches Rennen?'+(rep.track ? ' (Datei: '+esc(rep.track)+')' : '')+'</label><select class="inp" id="rimp-race" data-chg="rimp-race">'+S.races.map(function(x){
+      return '<option value="'+esc(x.id)+'"'+(x.id===SH.rid ? ' selected' : '')+'>'+esc((x.flag ? x.flag+" " : "")+x.name)+(raceDriven(x.id) ? ' – schon eingetragen' : '')+'</option>'; }).join("")+'</select>'+
+    (warn ? '<span class="small" style="color:var(--red)">Achtung: Der Streckenname passt nicht zur Datei.</span>' : '')+
+    (raceDriven(SH.rid) ? '<span class="small muted">Das Rennergebnis dieses Wochenendes wird ersetzt. Qualifying und Sprint bleiben.</span>' : '')+'</div>'+
+    '<div class="field"><span class="lbl2">Fahrer zuordnen'+(miss ? ' · <span style="color:var(--red)">'+miss+' offen</span>' : ' · alle erkannt')+'</span>'+
+    rep.rows.map(function(x,i){
+      var d=SH.map[x.n];
+      return '<div class="rimp-row'+(d==null ? ' miss' : '')+'"><span class="num rp">'+(x.dnf ? '✕' : x.pos)+'</span><span class="fn">'+esc(x.n)+(x.n===rep.me ? ' <span class="du">DU</span>' : '')+'</span>'+
+        drvSelect(d, 'data-chg="rimp-map" data-i="'+i+'" aria-label="App-Fahrer für '+esc(x.n)+'"', "– nicht übernehmen –")+'</div>';
+    }).join("")+'<span class="small muted">Die Zuordnung merkt sich die App für die nächsten Rennen.</span></div>';
+  return {title:(rep.kind==="s" ? "Sprint" : "Rennen")+(rep.track ? " · "+rep.track : ""), body:body,
+    foot:'<button type="button" class="btn" data-act="rimp-back">Zurück</button><button type="button" class="btn pri" data-act="rimp-apply">Übernehmen</button>'};
+}
+function applyRaceFile(){
+  var rep=SH.rep, rid=SH.rid, map=SH.map, R=S.res[rid], k=rep.kind==="s" ? "s" : "r";
+  if(!R) return;
+  rep.map={};
+  S.alias=S.alias||{};
+  rep.rows.forEach(function(x){ var d=map[x.n]; rep.map[x.n]= d==null ? null : d; if(d!=null) S.alias[normName(x.n)]=d; });
+  R[k]=nulls();
+  rep.rows.forEach(function(x){ var d=map[x.n]; if(d!=null) R[k][d]= x.dnf ? DNF : x.pos; });
+  var fd=rep.fl ? map[rep.fl.n] : null;
+  if(k==="r") R.flr= fd==null ? null : fd; else R.fls= fd==null ? null : fd;
+  if(rep.wx.length){ var w=rep.wx, n=w.length; R.wx=R.wx||{}; R.wx[k]={a:w[0].k, m:w[Math.floor(n/2)].k, e:w[n-1].k}; }
+  // Reifen deines Fahrers in die Bemerkungen
+  var me=rep.me ? map[rep.me] : null, st=null;
+  rep.st.forEach(function(x){ if(x.n===rep.me) st=x; });
+  if(me!=null && st && st.s.length){
+    R.memo=R.memo||blankMemo();
+    R.memo.tyres=R.memo.tyres.filter(function(t){ return !(t.sess===k && t.d===me); });
+    st.s.forEach(function(s,i){ var nx=st.s[i+1]; R.memo.tyres.push({d:me, sess:k, c:s.c, laps:s.b-s.a+1, pit:nx ? nx.a : null, wear:s.w}); });
+  }
+  R.rep=R.rep||{}; R.rep[k]=rep;
+  ui.race=rid; ui.sess=k;
+  touch(); closeSheet(); render(true);
+  toast((k==="s" ? "Sprint" : "Rennen")+" eingelesen – "+rep.rows.filter(function(x){ return map[x.n]!=null; }).length+" Fahrer");
+}
+function cleanRep(o){
+  if(!o || typeof o!=="object") return null;
+  var out={};
+  ["r","s"].forEach(function(k){
+    var r=o[k]; if(!r || typeof r!=="object" || !Array.isArray(r.rows)) return;
+    try{ var s=JSON.stringify(r); if(s.length<400000) out[k]=JSON.parse(s); }catch(e){}
+  });
+  return (out.r || out.s) ? out : null;
+}
+
+/* ---------- Helfer für die Anzeige ---------- */
+function repOf(id, k){ var R=S.res[id]; return R && R.rep ? R.rep[k||"r"] || null : null; }
+function repD(rep, n){ var d=rep.map ? rep.map[n] : null; return (d==null || d>=ND) ? null : d; }
+function repCol(rep, n){ var d=repD(rep, n), t=d==null ? null : teamOfD(d); return t ? t.color : "#8A90A2"; }
+function repName(rep, n){ var d=repD(rep, n); return d==null ? n : dname(d); }
+function repBadge(rep, n, cls){
+  var d=repD(rep, n), t=d==null ? null : teamOfD(d), c=t ? t.color : "#4A4F60", num=d==null ? "" : dnum(d);
+  return '<span class="dnum'+(cls ? ' '+cls : '')+'" style="background:'+c+';color:'+inkOn(c)+'">'+(num ? esc(num) : esc(String(n).slice(0,2).toUpperCase()))+'</span>';
+}
+function tyreDots(s){ return s ? '<span class="tdots">'+s.split("-").map(function(c){ var t=TYRES.filter(function(x){ return x[0]===c; })[0]; return '<i style="--tc:'+(t ? t[2] : "#888")+'">'+esc(c)+'</i>'; }).join("")+'</span>' : ''; }
+function tyreCol(c){ var t=TYRES.filter(function(x){ return x[0]===c; })[0]; return t ? t[2] : "#888"; }
+function repLeaderTime(rep){ var r=rep.rows[0]; return r && r.time ? timeSec(r.time) : null; }
+function repLapOf(rep, sec){
+  var tot=repLeaderTime(rep), laps=rep.laps||1, avg=tot ? tot/laps : 90, best=null;
+  rep.ev.forEach(function(e){ if(e.s!=null && e.s<=sec && (!best || e.s>=best.s)) best=e; });
+  var l=best ? best.l+(sec-best.s)/avg : 1+sec/avg;
+  return clamp(l, 0, laps);
+}
+function evKind(x){
+  var t=normName(x);
+  if(/beendet|strecke frei|grune flagge|endet/.test(t)) return "g";
+  if(/safety|vsc/.test(t)) return "s";
+  if(/gelbe flagge/.test(t)) return "y";
+  if(/verwarnung|strafe|durchfahrt|stop and go/.test(t)) return "w";
+  if(/aufgegeben|ausfall|ausgeschieden|defekt|unfall|disqual|schaden/.test(t)) return "x";
+  return "n";
+}
+/* Wichtige Ereignisse, gelbe Flaggen einer Runde zusammengefasst */
+function repEvents(rep, all){
+  var out=[];
+  rep.ev.forEach(function(e){
+    var k=evKind(e.x);
+    if(k==="g" && !all) return;
+    var last=out[out.length-1];
+    if(k==="y" && last && last.k==="y" && last.l===e.l){ var sm=/sektor\s*(\d)/i.exec(e.x); if(sm && last.sec.indexOf(sm[1])<0) last.sec.push(sm[1]); return; }
+    var o={l:e.l, s:e.s, k:k, x:e.x, sec:[]}; var sm2=/sektor\s*(\d)/i.exec(e.x); if(sm2) o.sec.push(sm2[1]);
+    out.push(o);
+  });
+  rep.rows.forEach(function(r){ if(r.dnf && r.lap && !out.some(function(o){ return o.k==="x" && o.x.indexOf(r.n)>=0; })) out.push({l:r.lap, k:"x", x:r.n+" fällt aus", why:r.why, sec:[]}); });
+  out.sort(function(a,b){ return a.l-b.l || (a.s||0)-(b.s||0); });
+  return out;
+}
+function evText(rep, o){
+  var x=o.x, m;
+  if(o.k==="y") return {t:"Gelbe Flagge"+(o.sec.length ? " · Sektor "+o.sec.join(", ") : ""), s:""};
+  if((m=/^(.*?)\s+f(?:ü|u)r\s+(.+?)\s*:\s*(.+)$/i.exec(x))){ var who=m[2]===rep.me ? "dich" : repName(rep, m[2]); return {t:m[1]+" für "+who, s:m[3]}; }
+  if(o.why) return {t:repName(rep, x.replace(/ fällt aus$/,""))+" fällt aus", s:o.why};
+  var p=x.split(":"); return {t:p[0], s:p.slice(1).join(":").trim()};
+}
+var EVIC={y:'<i class="evk y"></i>', w:'<i class="evk w">!</i>', x:'<i class="evk x">✕</i>', s:'<i class="evk s">SC</i>', g:'<i class="evk g"></i>', n:'<i class="evk n"></i>'};
+/* Phasen mit gelber Flagge / Safety-Car als Runden-Bereiche */
+function repBands(rep){
+  var b=[], open=null;
+  rep.ev.forEach(function(e){
+    var k=evKind(e.x);
+    if((k==="y" || k==="s") && !open) open={a:e.l, k:k};
+    else if(k==="g" && open){ b.push({a:open.a, b:Math.max(open.a, e.l), k:open.k}); open=null; }
+  });
+  if(open) b.push({a:open.a, b:open.a, k:open.k});
+  var tot=repLeaderTime(rep);
+  rep.wx.forEach(function(w,i){
+    if(w.k!=="rain" && w.k!=="storm") return;
+    var nx=rep.wx[i+1], a=repLapOf(rep, w.s||0), e=nx ? repLapOf(rep, nx.s) : (rep.laps||1);
+    b.push({a:a, b:e, k:"rain", x:w.x});
+  });
+  return b;
+}
+/* Positionen je Fahrer als Punkte (Runde, Platz) */
+function repTraces(rep){
+  var out=[];
+  rep.rows.forEach(function(r){
+    var pts=[[0, r.start]], pr=null;
+    if(rep.pos) rep.pos.rows.forEach(function(x){ if(x.n===r.n) pr=x; });
+    if(pr) pr.p.forEach(function(p,i){ var l=rep.pos.laps[i]; if(isFinite(p) && l!=null && (!r.dnf || !r.lap || l<=r.lap)) pts.push([l, p]); });
+    if(r.dnf && r.lap){ if(pts[pts.length-1][0]<r.lap) pts.push([r.lap, r.at || pts[pts.length-1][1]]); }
+    else if(!pr) pts.push([rep.laps||1, r.pos]);
+    out.push({n:r.n, r:r, pts:pts});
+  });
+  return out;
+}
+function posAt(pts, l){
+  for(var i=1;i<pts.length;i++) if(pts[i][0]>=l){ var a=pts[i-1], b=pts[i]; return b[0]===a[0] ? b[1] : a[1]+(b[1]-a[1])*(l-a[0])/(b[0]-a[0]); }
+  return pts[pts.length-1][1];
+}
+function repPits(rep, n){
+  var st=null; rep.st.forEach(function(x){ if(x.n===n) st=x; });
+  if(!st) return [];
+  return st.s.slice(1).map(function(s){ var p=null; st.pit.forEach(function(q){ if(q.l===s.a) p=q; }); return {l:s.a, st:p ? p.st : null, c:s.c}; });
+}
+/* Rennverlauf als SVG: gerade Linien von Messpunkt zu Messpunkt */
+function traceSvg(rep, o){
+  var W=o.w, H=o.h, big=o.big, N=rep.rows.length, laps=rep.laps||1;
+  var pl=big ? 34 : 8, pr=big ? 52 : 8, pt=big ? 24 : 8, pb=big ? 28 : 8;
+  function x(l){ return pl+(W-pl-pr)*l/laps; }
+  function y(p){ return pt+(H-pt-pb)*(p-1)/Math.max(1,N-1); }
+  var tr=repTraces(rep), hi=o.hi||{}, anyHi=Object.keys(hi).some(function(k){ return hi[k]; });
+  var g=[], i;
+  if(big){
+    for(i=1;i<=N;i++) g.push('<line x1="'+x(0)+'" x2="'+x(laps)+'" y1="'+y(i)+'" y2="'+y(i)+'" class="tg'+(i%5===0 ? ' b' : '')+'"/><text x="'+(x(0)-10)+'" y="'+(y(i)+4)+'" text-anchor="end" class="tl">'+i+'</text>');
+    var ticks=[0]; for(i=5;i<laps;i+=5) ticks.push(i); ticks.push(laps);
+    ticks.forEach(function(l){ g.push('<text x="'+x(l)+'" y="'+(H-6)+'" text-anchor="middle" class="tl">'+(l===0 ? 'Start' : l)+'</text>'); });
+  } else {
+    for(i=5;i<laps;i+=5) g.push('<line x1="'+x(i)+'" x2="'+x(i)+'" y1="0" y2="'+H+'" class="tg"/>');
+  }
+  repBands(rep).forEach(function(b){
+    var a=x(Math.max(0,b.a-.5)), e=x(Math.min(laps,b.b+.5));
+    if(b.k==="rain"){ a=x(b.a); e=x(b.b); }
+    g.push('<rect x="'+a+'" y="'+(pt-8)+'" width="'+Math.max(3,e-a)+'" height="'+(H-pt-pb+16)+'" class="band '+b.k+'"/>');
+    if(big) g.push('<text x="'+((a+e)/2)+'" y="'+(pt-12)+'" text-anchor="middle" class="bandl '+b.k+'">'+(b.k==="rain" ? 'Regen' : b.k==="s" ? 'SC' : 'Gelb')+'</text>');
+  });
+  function line(t, cls, col, sw){
+    return '<polyline points="'+t.pts.map(function(p){ return x(p[0]).toFixed(1)+","+y(p[1]).toFixed(1); }).join(" ")+'" class="'+cls+'" stroke="'+col+'" stroke-width="'+sw+'"'+(t.r.dnf ? ' stroke-dasharray="6 5"' : '')+'/>';
+  }
+  var me=null, top=[];
+  tr.forEach(function(t){
+    if(t.n===rep.me){ me=t; return; }
+    if(hi[t.n]){ top.push(t); return; }
+    g.push(line(t, "tln"+(anyHi ? " dim" : ""), repCol(rep, t.n), big ? 2.4 : 1.6));
+  });
+  top.forEach(function(t){ g.push(line(t, "tln on", repCol(rep, t.n), big ? 4 : 2.6)); });
+  var meCol=me ? repCol(rep, me.n) : null;
+  if(me){ g.push(line(me, "tln glow", meCol, big ? 12 : 7)); g.push(line(me, "tln me", meCol, big ? 4.5 : 3)); }
+  tr.forEach(function(t){ if(t.r.dnf && t.r.lap){ var p=t.pts[t.pts.length-1]; g.push('<text x="'+x(p[0])+'" y="'+(y(p[1])+(big ? 6 : 4))+'" text-anchor="middle" class="tx"'+(big ? '' : ' style="font-size:11px"')+'>✕</text>'); } });
+  if(big){
+    [me].concat(top).forEach(function(t){
+      if(!t) return;
+      repPits(rep, t.n).forEach(function(p){ var py=y(posAt(t.pts, p.l)); g.push('<circle cx="'+x(p.l)+'" cy="'+py+'" r="5.5" class="pit" stroke="'+repCol(rep, t.n)+'"/>'); if(t===me && W>=600) g.push('<text x="'+x(p.l)+'" y="'+(py-11)+'" text-anchor="middle" class="pitl">Box R'+p.l+'</text>'); });
+    });
+    tr.forEach(function(t){
+      if(t.r.dnf) return;
+      var c=repCol(rep, t.n), d=repD(rep, t.n), lbl=d!=null && dnum(d) ? dnum(d) : String(t.r.pos);
+      g.push('<g transform="translate('+(x(laps)+10)+','+y(t.r.pos)+')"'+(anyHi && !hi[t.n] && t!==me ? ' opacity=".35"' : '')+'><rect x="0" y="-9" width="32" height="18" rx="6" fill="'+c+'"/><text x="16" y="4.5" text-anchor="middle" class="fbl" fill="'+inkOn(c)+'">'+esc(lbl)+'</text></g>');
+    });
+    // Antippen: Runde wählen
+    if(rep.pos){
+      var L=[0].concat(rep.pos.laps);
+      L.forEach(function(l,k){
+        var a=k ? (x(L[k-1])+x(l))/2 : x(0), e=k<L.length-1 ? (x(l)+x(L[k+1]))/2 : x(laps);
+        g.push('<rect x="'+a+'" y="0" width="'+(e-a)+'" height="'+H+'" fill="transparent" data-act="tr-lap" data-v="'+l+'" style="cursor:pointer"/>');
+      });
+    }
+    if(o.lap!=null && rep.pos){
+      var lx=x(o.lap), ord=tr.filter(function(t){ return !(t.r.dnf && t.r.lap && t.r.lap<o.lap); }).map(function(t){ return {t:t, p:posAt(t.pts, o.lap)}; }).sort(function(a,b){ return a.p-b.p; }).slice(0,5);
+      var bw=196, bx=lx+14>W-pr-bw ? lx-14-bw : lx+14;
+      g.push('<line x1="'+lx+'" x2="'+lx+'" y1="'+(pt-8)+'" y2="'+(H-pb+8)+'" class="cur"/>');
+      g.push('<g transform="translate('+bx+','+(pt+6)+')" style="pointer-events:none"><rect width="'+bw+'" height="'+(34+ord.length*22)+'" rx="14" class="tipb"/><text x="14" y="23" class="tiph">'+(o.lap===0 ? 'START' : 'NACH RUNDE '+o.lap)+'</text>'+
+        ord.map(function(z,k){ var c=repCol(rep, z.t.n); return '<text x="14" y="'+(48+k*22)+'" class="tipn">'+(k+1)+'</text><rect x="32" y="'+(35+k*22)+'" width="26" height="17" rx="5" fill="'+c+'"/><text x="45" y="'+(47.5+k*22)+'" text-anchor="middle" class="fbl" style="font-size:11px" fill="'+inkOn(c)+'">'+esc((function(){ var d=repD(rep,z.t.n); return d!=null && dnum(d) ? dnum(d) : ""; })())+'</text><text x="66" y="'+(48+k*22)+'" class="tipt">'+esc(repName(rep, z.t.n))+'</text>'; }).join("")+'</g>');
+    }
+  }
+  return '<svg class="trace'+(big ? ' big' : '')+'" viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Rennverlauf">'+g.join("")+'</svg>';
+}
+function stintBar(rep, x, laps){
+  var st=null; rep.st.forEach(function(z){ if(z.n===x.n) st=z; });
+  if(!st || !st.s.length) return '<div class="sbar"></div>';
+  return '<div class="sbar">'+st.s.map(function(s){
+    var w=(s.b-s.a+1)/laps*100, l=(s.a-1)/laps*100;
+    return '<i style="left:'+l+'%;width:calc('+w+'% - 2px);background:'+tyreCol(s.c)+'" title="'+esc(s.c)+' · Runde '+s.a+'–'+s.b+(s.w!=null ? ' · '+s.w+' %' : '')+'"><b>'+(s.b-s.a+1)+'</b>'+(s.w!=null && w>12 ? '<small>'+s.w+'%</small>' : '')+'</i>';
   }).join("")+'</div>';
 }
-function entryCard(id){
-  var R=S.res[id], open=ui.entryOpen;
-  return '<div class="card st" style="--i:4">'+
-    '<button type="button" class="collapse" data-act="entry-toggle" aria-expanded="'+open+'">'+
-      '<span class="logo" style="--s:40px;border-radius:12px;background:var(--accent-soft);color:var(--accent)">'+ico(IC.pen,20)+'</span>'+
-      '<span><span class="h2" style="display:block">Ergebnisse eintragen</span><span class="small muted">Plätze, Autostärke, Notizen</span></span>'+
-      '<span class="chev">'+ico(IC.chev,20,2.4)+'</span></button>'+
-    '<div class="reveal'+(open ? ' open' : '')+'"><div><div class="reveal-inner">'+
-      '<button type="button" class="bigact photo" data-act="entry-open"><span class="ic">'+ico(IC.pen,22)+'</span><span><span class="tt">'+esc(SESSLBL[ui.sess])+' eintragen</span><br><span class="ds">Erste Buchstaben tippen, auf Weiter \u2013 fertig</span></span></button>'+
-      '<button type="button" class="btn" data-act="power-hand">'+ico(IC.gauge,18)+' Autostärke vor diesem GP</button>'+
-      memoBlock(id)+
-      '<button type="button" class="btn danger sm" data-act="race-clear" style="align-self:flex-start">Dieses Wochenende leeren</button>'+
-    '</div></div></div></div>';
+
+/* ---------- Rennen-Ansicht ---------- */
+function vRace(){
+  ensureRace();
+  if(!ui.race) return '<div class="card">'+emptyBox(IC.race,"Kein Rennkalender","Lege in den Einstellungen Rennen an.",'<button type="button" class="btn pri" data-act="setp-go" data-v="cal">Zu den Einstellungen</button>')+'</div>';
+  var id=ui.race, ri=raceIndex(id), R=S.races[ri], sess=sessionsOf(id);
+  if(sess.indexOf(ui.sess)<0) ui.sess="r";
+  var h=[];
+  h.push('<div class="chips st" style="--i:0" role="group" aria-label="Rennen wählen">'+S.races.map(function(x){
+    var done=raceDriven(x.id);
+    return '<button type="button" class="chip code'+(done ? ' done' : '')+'" data-act="race" data-r="'+esc(x.id)+'" aria-pressed="'+(x.id===id)+'" title="'+esc(x.name)+'">'+
+      (x.flag ? '<span style="font-size:15px">'+esc(x.flag)+'</span>' : '')+esc(raceCode(x))+(done ? ico(IC.check,13,3) : '')+'</button>';
+  }).join("")+'</div>');
+  h.push('<div class="card gp st" style="--i:1">'+
+    '<button type="button" class="iconbtn" data-act="race-step" data-v="-1" aria-label="Vorheriges Rennen"'+(ri<=0 ? ' disabled' : '')+'>'+ico(IC.left,20,2.4)+'</button>'+
+    '<span class="fl" aria-hidden="true">'+esc(R.flag||"")+'</span>'+
+    '<div class="t"><div class="eyebrow">Rennen '+(ri+1)+' von '+S.races.length+(S.sprints[id] ? ' · Sprint-Wochenende' : '')+'</div><div class="n">'+esc(R.name)+'</div></div>'+
+    '<button type="button" class="iconbtn" data-act="race-step" data-v="1" aria-label="Nächstes Rennen"'+(ri>=S.races.length-1 ? ' disabled' : '')+'>'+ico(IC.right,20,2.4)+'</button></div>');
+  var k=ui.sess, rep=(k==="r" || k==="s") ? repOf(id, k) : null;
+  h.push('<div class="wk">'+
+    '<div class="wk-act st" style="--i:2">'+
+      '<button type="button" class="btn pri" data-act="rimp">'+ico(IC.upload,18)+' Rennen-Datei einlesen</button>'+
+      '<button type="button" class="btn" data-act="power-hand" data-r="'+esc(id)+'">'+ico(IC.gauge,18)+' Autostärke</button>'+
+      '<button type="button" class="btn" data-act="quali-pop">'+ico(IC.race,18)+' Qualifying</button>'+
+      '<button type="button" class="btn" data-act="memo-pop">'+ico(IC.pen,18)+' Bemerkungen</button></div>'+
+    '<div class="wk-res">'+resultCard(id, sess, k, rep)+'</div>'+
+    '<div class="wk-side stack">'+wxCard(id, k, rep)+
+      (rep ? traceCard(rep)+'<div class="wk2">'+tyreCard(rep)+eventCard(rep)+'</div>'
+           : '<div class="card st" style="--i:5">'+emptyBox(IC.upload, "Rennverlauf, Reifen & Ereignisse", "Lies die Rennen-Datei aus deinem Mitschreib-Programm ein, dann erscheinen hier Rennverlauf, Reifen-Stints und alle Ereignisse.", '<button type="button" class="btn pri" data-act="rimp">Rennen-Datei einlesen</button>')+'</div>')+
+    '</div></div>');
+  return h.join("");
+}
+function resultCard(id, sess, k, rep){
+  var R=S.res[id], race=S.races[raceIndex(id)];
+  var head='<div class="chead"><h2>Ergebnis · '+esc(race.name)+'</h2><button type="button" class="btn sm" data-act="entry-open">'+ico(IC.pen,15)+' Eintragen</button></div>'+
+    (sess.length>1 ? '<div class="seg sm" role="group" aria-label="Session" style="margin-bottom:10px">'+segBtns("sess", k, sess.map(function(s){ return [s, SESSSHORT[s]]; }))+'</div>' : '');
+  var rows=[];
+  if(rep){
+    var prev=null;
+    rep.rows.forEach(function(x){
+      var iv="";
+      if(!x.dnf){
+        if(x.lapped) iv="+"+x.lapped+" Rd.";
+        else if(x.gap!=null && prev && prev.gap!=null && !prev.lapped) iv=fmtGap(x.gap-prev.gap);
+        else if(x.gap!=null) iv=x.gap ? fmtGap(x.gap) : "";
+        prev=x;
+      }
+      rows.push({d:repD(rep, x.n), n:x.n, p:x.pos, start:x.start, dnf:x.dnf, iv:iv, tot:x.time || (x.lapped ? "+"+x.lapped+" Rd." : fmtGap(x.gap)), best:x.best, ty:x.ty, lap:x.lap, why:x.why, me:x.n===rep.me});
+    });
+  } else {
+    var arr=R[k], cmp= k==="r" ? R.q : (k==="s" ? R.sq : null), dn=[];
+    for(var d=0; d<ND; d++){
+      if(isNum(arr[d])) rows.push({d:d, p:arr[d], start:cmp && isNum(cmp[d]) ? cmp[d] : null});
+      else if(arr[d]===DNF) dn.push({d:d, dnf:true});
+    }
+    rows.sort(function(a,b){ return a.p-b.p; });
+    rows=rows.concat(dn);
+  }
+  if(!rows.length) return '<div class="card rcard st" style="--i:3">'+head+'<div class="empty small">'+esc(SESSLBL[k])+' noch nicht eingetragen. Tippe auf „Eintragen“ oder lies die Rennen-Datei ein.</div></div>';
+  var flD = rep ? (rep.fl ? repD(rep, rep.fl.n) : null) : (k==="r" ? R.flr : (k==="s" ? R.fls : null)), flN=rep && rep.fl ? rep.fl.n : null;
+  function badge(x){ return x.d!=null ? dNumSm2(x.d) : repBadge(rep, x.n, ""); }
+  function nm(x){ return x.d!=null ? dname(x.d) : x.n; }
+  var fin=rows.filter(function(x){ return !x.dnf; }), out=rows.filter(function(x){ return x.dnf; });
+  var h=[head];
+  var pod=fin.slice(0,3);
+  if(pod.length){
+    h.push('<div class="rpod">'+[1,0,2].map(function(i){
+      var x=pod[i]; if(!x) return '<div></div>';
+      var fl= rep ? x.n===flN : (x.d!=null && x.d===flD);
+      return '<button type="button" class="rp p'+(i+1)+'"'+(x.d!=null ? ' data-act="driver" data-d="'+x.d+'"' : '')+'><span class="ps">P'+(i+1)+'</span>'+badge(x)+'<span class="nm">'+esc(nm(x).split(" ").pop())+(x.me ? ' <span class="du">DU</span>' : '')+'</span>'+
+        (rep ? '<span class="tm num">'+esc(i===0 ? (x.tot||"") : x.tot)+'</span>' : '<span class="tmn">'+esc(((x.d!=null && teamOfD(x.d))||{}).name||"")+'</span>')+
+        (fl ? '<span class="flc">'+ico(IC.bolt,11,2.4)+' '+(rep && rep.fl ? esc(rep.fl.t)+(rep.fl.lap ? ' · R'+rep.fl.lap : '') : 'Schnellste')+'</span>' : '')+'</button>';
+    }).join("")+'</div>');
+  }
+  var list=fin.slice(3);
+  if(list.length || out.length){
+    h.push('<div class="rrow hd"><span></span><span></span><span>Fahrer</span><span class="c">'+(rep ? 'Start' : (k==="r" ? 'Quali' : ''))+'</span><span class="r">'+(rep ? 'Abstand' : '')+'</span><span class="r bl">'+(rep ? 'Beste' : '')+'</span><span class="ty">'+(rep ? 'Reifen' : '')+'</span></div>');
+    list.forEach(function(x){
+      var dl=x.start ? x.start-x.p : null, fl= rep ? x.n===flN : (x.d!=null && x.d===flD);
+      h.push('<button type="button" class="rrow'+(x.me ? ' me' : '')+'"'+(x.d!=null ? ' data-act="driver" data-d="'+x.d+'"' : '')+'><span class="ps">'+x.p+'</span>'+badge(x)+'<span class="nm">'+esc(nm(x))+'</span>'+
+        '<span class="c dl '+(dl>0 ? 'up' : dl<0 ? 'dn' : '')+'">'+(dl>0 ? '▲'+dl : dl<0 ? '▼'+(-dl) : (dl===0 ? '–' : ''))+'</span>'+
+        '<span class="r iv num">'+esc(x.iv||"")+'</span><span class="r bl num'+(fl ? ' fl' : '')+'">'+esc(x.best||"")+'</span><span class="ty">'+tyreDots(x.ty)+'</span></button>');
+    });
+    if(out.length){
+      h.push('<div class="rdiv">Ausgefallen</div>');
+      out.forEach(function(x){
+        h.push('<button type="button" class="rrow dnf"'+(x.d!=null ? ' data-act="driver" data-d="'+x.d+'"' : '')+'><span class="ps">✕</span>'+badge(x)+'<span class="nm">'+esc(nm(x))+'</span><span class="c"></span>'+
+          '<span class="r iv red">'+(x.lap ? 'Runde '+x.lap : 'DNF')+'</span><span class="r bl">'+esc(x.why ? x.why.replace(/^schwerer\s+/i,"") : "")+'</span><span class="ty">'+tyreDots(x.ty)+'</span></button>');
+      });
+    }
+  }
+  return '<div class="card rcard st" style="--i:3">'+h.join("")+'</div>';
+}
+function dNumSm2(d){ var t=teamOfD(d), c=t ? t.color : "#4A4F60", n=dnum(d); return '<span class="dnum" style="background:'+c+';color:'+inkOn(c)+'">'+(n ? esc(n) : '–')+'</span>'; }
+function wxCard(id, k, rep){
+  var R=S.res[id];
+  if(rep && rep.wx.length){
+    var tot=repLeaderTime(rep)||rep.wx[rep.wx.length-1].s*1.3||1;
+    return '<div class="card st" style="--i:4">'+cardHead("Wetter", rep.wx.length+" Zeitpunkte aus der Datei")+'<div class="wx4" style="--n:'+rep.wx.length+'">'+rep.wx.map(function(w){
+      var lap=w.s ? Math.max(1, Math.round(repLapOf(rep, w.s))) : null;
+      return '<div><b>'+esc(w.t)+(lap ? ' <span>· R'+lap+'</span>' : '')+'</b>'+wxIcon(w.k, 26)+'<span class="tx">'+esc(w.x)+'</span>'+
+        (w.tr!=null || w.air!=null ? '<span class="tp">'+(w.tr!=null ? 'Strecke '+w.tr+'°' : '')+(w.air!=null ? ' · Luft '+w.air+'°' : '')+'</span>' : '')+'</div>';
+    }).join("")+'</div><div class="wxbar">'+rep.wx.map(function(w,i){ var nx=rep.wx[i+1], a=w.s||0, e=nx ? nx.s : Math.max(tot, a+1); return '<i class="wx-'+w.k+'" style="flex:'+Math.max(1,e-a)+'"></i>'; }).join("")+'</div></div>';
+  }
+  return '<div class="card st" style="--i:4">'+cardHead("Wetter", esc(SESSLBL[k]))+wxLine(R, k)+'</div>';
+}
+function traceCard(rep){
+  return '<div class="card st" style="--i:5"><div class="chead"><h2>Rennverlauf</h2><button type="button" class="btn sm" data-act="trace" data-v="pos">Vollbild '+ico('<path d="M14 4h6v6M20 4l-8 8M10 20H4v-6"/>',14,2.4)+'</button></div>'+
+    '<button type="button" class="trmini" data-act="trace" data-v="pos" aria-label="Rennverlauf im Vollbild">'+traceSvg(rep, {w:640, h:180, big:false})+'</button>'+
+    '<div class="trax"><span>Start</span><span>Runde '+Math.round((rep.laps||1)/2)+'</span><span>Ziel · R'+(rep.laps||"")+'</span></div></div>';
+}
+function tyreCard(rep){
+  var laps=rep.laps||1, pick=rep.rows.filter(function(x){ return !x.dnf; }).slice(0,5);
+  var me=rep.rows.filter(function(x){ return x.n===rep.me; })[0];
+  if(me && pick.indexOf(me)<0) pick.unshift(me);
+  else if(me){ pick.splice(pick.indexOf(me),1); pick.unshift(me); }
+  return '<div class="card st" style="--i:6"><div class="chead"><h2>Reifen</h2><button type="button" class="btn sm ghost" data-act="trace" data-v="ty">Alle Fahrer →</button></div>'+
+    pick.map(function(x){ return '<div class="srow2"><span class="who">'+repBadge(rep, x.n)+'<span>'+esc(repName(rep, x.n).split(" ").pop())+'</span></span>'+stintBar(rep, x, laps)+'</div>'; }).join("")+
+    '<div class="small muted" style="margin-top:6px">Zahl = Runden auf dem Satz · Lücke = Boxenstopp</div></div>';
+}
+function eventCard(rep){
+  var ev=repEvents(rep, false);
+  var fl=rep.fl ? '<div class="ev"><span class="r">R'+(rep.fl.lap||"")+'</span><i class="evk p">'+ico(IC.bolt,11,2.6)+'</i><span>Schnellste Runde: '+esc(rep.fl.n===rep.me ? "du" : repName(rep, rep.fl.n))+'<small>'+esc(rep.fl.t)+(rep.fl.c ? ' auf '+esc(rep.fl.c) : '')+'</small></span></div>' : '';
+  return '<div class="card st" style="--i:7"><div class="chead"><h2>Ereignisse</h2><button type="button" class="btn sm ghost" data-act="trace" data-v="ev">Alle '+ev.length+' →</button></div>'+
+    ev.filter(function(o){ return o.k!=="y"; }).slice(0,5).map(function(o){ var t=evText(rep, o); return '<div class="ev"><span class="r">R'+o.l+'</span>'+EVIC[o.k]+'<span>'+esc(t.t)+(t.s ? '<small>'+esc(t.s)+'</small>' : '')+'</span></div>'; }).join("")+fl+'</div>';
+}
+
+/* ---------- Vollbild: Rennverlauf / Reifen / Runden / Ereignisse ---------- */
+function sheetTrace(){
+  var rep=repOf(SH.rid, SH.k), race=S.races[raceIndex(SH.rid)];
+  if(!rep) return {title:"Rennverlauf", body:""};
+  var tabs=[["pos","Position"],["ty","Reifen"]];
+  if(rep.lt.length) tabs.push(["lt","Runden"]);
+  tabs.push(["ev","Ereignisse"]);
+  var tab=SH.tab, b='<div class="trhead"><div><div class="eyebrow">'+esc((race.flag||"")+" Rennen "+(raceIndex(SH.rid)+1)+" · "+race.name)+'</div><div class="trtitle">'+({pos:"Rennverlauf",ty:"Reifen",lt:"Rundenzeiten",ev:"Ereignisse"})[tab]+'</div></div>'+
+    '<div class="seg" role="group" aria-label="Ansicht">'+segBtns("tr-tab", tab, tabs)+'</div></div>';
+  var W=Math.max(320, Math.min(1500, (window.innerWidth||1000)-40)), laps=rep.laps||1;
+  if(tab==="pos"){
+    var H= W<600 ? rep.rows.length*22+60 : Math.max(360, Math.min(rep.rows.length*28+60, Math.round(W*0.62)));
+    b+='<p class="small muted trhint">Tippe in die Grafik für die Reihenfolge nach einer Runde, auf einen Fahrer unten zum Hervorheben.'+(rep.pos ? ' Messpunkte: Start, '+rep.pos.laps.join(", ")+'.' : '')+'</p>'+
+      '<div class="trbox">'+traceSvg(rep, {w:W, h:H, big:true, hi:SH.hi, lap:SH.lap})+'</div>'+
+      '<div class="trleg">'+rep.rows.map(function(x){ var on=!!SH.hi[x.n], me=x.n===rep.me;
+        return '<button type="button" class="trc'+(on ? ' on' : '')+(me ? ' me' : '')+(x.dnf ? ' out' : '')+'" data-act="tr-hi" data-v="'+esc(x.n)+'" style="--c:'+repCol(rep, x.n)+'">'+repBadge(rep, x.n)+esc(repName(rep, x.n).split(" ").pop().slice(0,3).toUpperCase())+'</button>'; }).join("")+
+      (Object.keys(SH.hi).some(function(k){ return SH.hi[k]; }) ? '<button type="button" class="trc" data-act="tr-hi" data-v="">Alle zeigen</button>' : '')+'</div>';
+  } else if(tab==="ty"){
+    b+='<div class="tygridall">'+rep.rows.map(function(x){
+      var pits=repPits(rep, x.n);
+      return '<div class="tyl'+(x.n===rep.me ? ' me' : '')+'"><span class="ps num">'+(x.dnf ? '✕' : x.pos)+'</span><span class="who">'+repBadge(rep, x.n)+'<span>'+esc(repName(rep, x.n))+'</span></span>'+stintBar(rep, x, laps)+
+        '<span class="pits">'+(pits.length ? plural(pits.length,"Stopp","Stopps")+(function(){ var v=pits.filter(function(p){ return p.st!=null; }).map(function(p){ return p.st; }); return v.length ? '<small>Ø '+(v.reduce(function(a,b){ return a+b; },0)/v.length).toFixed(1)+' s Standzeit</small>' : ''; })() : '–')+'</span></div>';
+    }).join("")+'</div><div class="trax" style="margin-left:auto;max-width:100%"><span>Runde 1</span><span>Runde '+laps+'</span></div>'+
+    '<p class="small muted">Zahl = Runden auf dem Satz, darunter der Verschleiß am Ende. Rechts: Boxenstopps mit Standzeit.</p>';
+  } else if(tab==="lt"){
+    b+=rep.lt.map(function(L){ return lapChart(rep, L, W); }).join("");
+  } else {
+    var ev=repEvents(rep, true);
+    b+='<div class="evall">'+ev.map(function(o){ var t=evText(rep, o); return '<div class="ev"><span class="r">R'+o.l+'</span>'+EVIC[o.k]+'<span>'+esc(t.t)+(t.s ? '<small>'+esc(t.s)+'</small>' : '')+'</span></div>'; }).join("")+'</div>';
+  }
+  return {title:"", body:b, foot:'<button type="button" class="btn wide" data-act="sheet-close">Schließen</button>'};
+}
+function lapChart(rep, L, W){
+  var r=L.r, n=r.length; if(!n) return "";
+  var secs=r.map(function(x){ return timeSec(x.t); }), mn=Math.min.apply(null, secs), base=[], i;
+  for(i=0;i<n;i++) base.push(secs[i]);
+  var sorted=base.slice().sort(function(a,b){ return a-b; }), med=sorted[Math.floor(n/2)], cap=Math.max(med+6, mn+4);
+  var H=230, pl=46, pr=10, pt=18, pb=26, bw=(W-pl-pr)/n;
+  function y(s){ return pt+(H-pt-pb)*(1-(Math.min(s,cap)-(mn-1))/(cap-(mn-1))); }
+  var g=[];
+  [mn-1+(cap-mn+1)*0.25, mn-1+(cap-mn+1)*0.5, mn-1+(cap-mn+1)*0.75].forEach(function(s){ g.push('<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(s)+'" y2="'+y(s)+'" class="tg"/><text x="'+(pl-6)+'" y="'+(y(s)+4)+'" text-anchor="end" class="tl">'+Math.floor(s/60)+':'+("0"+(s%60).toFixed(1)).slice(-4)+'</text>'); });
+  r.forEach(function(x,k){
+    var s=secs[k], bx=pl+k*bw+1, top=y(s), best=/beste/i.test(x.x), box=/box/i.test(x.x);
+    g.push('<rect x="'+bx+'" y="'+top+'" width="'+Math.max(2,bw-2)+'" height="'+(H-pb-top)+'" rx="3" fill="'+tyreCol(x.c)+'" opacity="'+(box ? .35 : .9)+'"'+(best ? ' stroke="var(--purple)" stroke-width="3"' : '')+'><title>Runde '+x.l+': '+esc(x.t)+(x.p ? ' · P'+x.p : '')+(x.x ? ' · '+esc(x.x) : '')+'</title></rect>');
+    if(s>cap) g.push('<text x="'+(bx+bw/2)+'" y="'+(top+12)+'" text-anchor="middle" class="tl" style="font-size:10px">↑</text>');
+    if(box) g.push('<text x="'+(bx+bw/2)+'" y="'+(top-4)+'" text-anchor="middle" class="pitl">Box</text>');
+    if(best) g.push('<text x="'+(bx+bw/2)+'" y="'+(top-4)+'" text-anchor="middle" class="bestl">'+esc(x.t)+'</text>');
+    if(n<=40 || x.l%5===0 || k===0) g.push('<text x="'+(bx+bw/2)+'" y="'+(H-8)+'" text-anchor="middle" class="tl" style="font-size:10px">'+x.l+'</text>');
+  });
+  return '<div class="card" style="margin-bottom:12px">'+cardHead(L.n===rep.me ? "Deine Rundenzeiten" : "Rundenzeiten "+repName(rep, L.n), "Farbe = Reifen · lila Rand = schnellste")+
+    '<svg class="trace" viewBox="0 0 '+W+' '+H+'" width="100%">'+g.join("")+'</svg></div>';
+}
+function openTrace(tab){ SH={type:"trace", rid:ui.race, k:(ui.sess==="s" ? "s" : "r"), tab:tab||"pos", hi:{}, lap:null}; if(!repOf(SH.rid, SH.k)) SH.k="r"; showSheet(); }
+
+/* ---------- Pop-ups: Qualifying, Bemerkungen ---------- */
+function sheetQuali(){
+  var id=ui.race, R=S.res[id], sess=sessionsOf(id).filter(function(k){ return k==="q" || k==="sq"; }), out='';
+  sess.forEach(function(k){
+    var rows=[], d; for(d=0; d<ND; d++) if(isNum(R[k][d])) rows.push({d:d, p:R[k][d]});
+    rows.sort(function(a,b){ return a.p-b.p; });
+    out+='<div class="field"><span class="lbl2">'+esc(SESSLBL[k])+'</span>'+(rows.length ? rows.map(function(x){
+      return '<div class="qrow"><span class="ps num">'+x.p+'</span>'+dNumSm2(x.d)+'<span class="nm">'+esc(dname(x.d))+'</span><span class="tm muted">'+esc(((teamOfD(x.d))||{}).name||"")+'</span></div>'; }).join("")
+      : '<div class="empty small" style="padding:10px 0">Noch nicht eingetragen.</div>')+
+      '<button type="button" class="btn sm" data-act="entry-sess" data-v="'+k+'">'+ico(IC.pen,15)+' '+esc(SESSLBL[k])+' eintragen</button></div>';
+  });
+  return {title:"Qualifying", body:out+'<p class="small muted" style="margin:0">Das Einlesen einer Qualifying-Datei kommt, sobald es eine Beispiel-Datei gibt.</p>',
+    foot:'<button type="button" class="btn" disabled>Quali-Datei einlesen (folgt)</button><button type="button" class="btn pri" data-act="sheet-close">Fertig</button>'};
+}
+function sheetMemo(){
+  return {title:"Bemerkungen", body:memoBlock(ui.race)+'<button type="button" class="btn danger sm" data-act="race-clear" style="align-self:flex-start">Dieses Wochenende leeren</button>',
+    foot:'<button type="button" class="btn wide pri" data-act="sheet-close">Fertig</button>'};
 }
 
 /* ---------- Statistik ---------- */
@@ -1856,6 +2344,10 @@ function renderSheet(){
   else if(SH.type==="chart") r=sheetChart();
   else if(SH.type==="power") r=sheetPower();
   else if(SH.type==="confirm") r=sheetConfirm();
+  else if(SH.type==="rimp") r=sheetRaceImport();
+  else if(SH.type==="trace") r=sheetTrace();
+  else if(SH.type==="quali") r=sheetQuali();
+  else if(SH.type==="memo") r=sheetMemo();
   else r={title:"", body:""};
   $("sheet-title").textContent=r.title;
   var body=$("sheet-body"), keep=SH.keepScroll ? body.scrollTop : 0;
@@ -1863,7 +2355,7 @@ function renderSheet(){
   body.scrollTop=keep; SH.keepScroll=false;
   var f=$("sheet-foot");
   f.hidden=!r.foot; f.innerHTML=r.foot||"";
-  $("sheet").classList.toggle("full", SH.type==="chart");
+  $("sheet").classList.toggle("full", SH.type==="chart" || SH.type==="trace");
   segInd(body);
   if(SH.type==="crop") cropInit();
 }
@@ -2321,6 +2813,18 @@ document.addEventListener("click", function(e){
     case "sess": ui.sess=v; refresh(); break;
     case "entry-toggle": ui.entryOpen=!ui.entryOpen; el.setAttribute("aria-expanded", ui.entryOpen); var rv=el.parentNode.querySelector(".reveal"); if(rv) rv.classList.toggle("open", ui.entryOpen); break;
     case "entry-open": openEntry(ui.sess); break;
+    case "entry-sess": ui.sess=v; openEntry(v); break;
+    case "rimp": openRaceImport(); break;
+    case "rimp-file": $("file-race").value=""; $("file-race").click(); break;
+    case "rimp-parse": raceImportParse(); break;
+    case "rimp-back": SH.step=1; SH.err=""; renderSheet(); break;
+    case "rimp-apply": applyRaceFile(); break;
+    case "trace": openTrace(v); break;
+    case "tr-tab": SH.tab=v; SH.keepScroll=false; renderSheet(); break;
+    case "tr-hi": if(!v) SH.hi={}; else SH.hi[v]=!SH.hi[v]; SH.keepScroll=true; renderSheet(); break;
+    case "tr-lap": { var lv=+v; SH.lap= SH.lap===lv ? null : lv; SH.keepScroll=true; renderSheet(); break; }
+    case "quali-pop": SH={type:"quali"}; showSheet(); break;
+    case "memo-pop": SH={type:"memo"}; showSheet(); break;
     case "power-hand": openPower(el.getAttribute("data-r")); break;
     case "race-clear": askConfirm({title:"Wochenende leeren?", text:"Alle Ergebnisse von <b>"+esc(S.races[raceIndex(ui.race)].name)+"</b> werden gelöscht. Autostärke und Notizen bleiben.", ok:"Leeren", danger:true,
       onOk:function(){ var R=S.res[ui.race], n=R.notes, mm=R.memo; S.res[ui.race]=blankSession(); S.res[ui.race].notes=n; S.res[ui.race].memo=mm||blankMemo(); touch(); refresh(); toast("Geleert"); }}); break;
@@ -2465,6 +2969,10 @@ document.addEventListener("change", function(e){
   var v=el.value;
   switch(k){
     case "race-count": setRaceCount(parseInt(v,10)); break;
+    case "rimp-race": SH.rid=v; SH.keepScroll=true; renderSheet(); break;
+    case "rimp-map": { var rr=SH.rep.rows[+el.getAttribute("data-i")], nv= v==="" ? null : +v;
+      if(nv!=null) Object.keys(SH.map).forEach(function(n){ if(SH.map[n]===nv) SH.map[n]=null; });
+      SH.map[rr.n]=nv; SH.keepScroll=true; renderSheet(); break; }
     case "memo-drv-d": { var X=memoOf().drv[+el.getAttribute("data-i")]; if(X){ X.d= v==="" ? null : +v; touch(); } break; }
     case "memo-ty-d": { var Y=memoOf().tyres[+el.getAttribute("data-i")]; if(Y){ Y.d= v==="" ? null : +v; touch(); } break; }
     case "memo-ty-s": { var Z=memoOf().tyres[+el.getAttribute("data-i")]; if(Z){ Z.sess=v; touch(); } break; }
@@ -2479,6 +2987,12 @@ $("file-json").addEventListener("change", function(){
   var f=this.files && this.files[0]; if(!f) return;
   var fr=new FileReader();
   fr.onload=function(){ var ta=$("imp-text"); if(ta) ta.value=String(fr.result); toast("Datei geladen – jetzt importieren"); };
+  fr.readAsText(f);
+});
+$("file-race").addEventListener("change", function(){
+  var f=this.files && this.files[0]; if(!f) return;
+  var fr=new FileReader();
+  fr.onload=function(){ if(SH && SH.type==="rimp"){ SH.text=String(fr.result); var ta=$("rimp-text"); if(ta) ta.value=SH.text; raceImportParse(); } };
   fr.readAsText(f);
 });
 $("scrim").addEventListener("click", closeSheet);
