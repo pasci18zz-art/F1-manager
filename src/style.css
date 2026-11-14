@@ -563,7 +563,7 @@ table.mx thead th.spc{background:color-mix(in srgb,var(--red) 14%,var(--card-2))
 .wk-side{grid-area:side;min-width:0;container-type:inline-size}
 .wk2{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
 @media (min-width:900px){
-  .wk{grid-template-columns:minmax(0,520px) minmax(0,1fr);grid-template-areas:"res act" "res side";align-items:start}
+  .wk{grid-template-columns:minmax(0,520px) minmax(0,1fr);grid-template-rows:auto 1fr;grid-template-areas:"res act" "res side";align-items:start}
   .wk-res{position:sticky;top:12px}
 }
 @container (min-width:720px){.wk2{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}}
@@ -699,3 +699,8 @@ svg.trace .tipt{fill:var(--ink);font:600 14px var(--body)}
 .rp .dnum{height:22px;min-width:32px;font-size:14px}
 .trhead,.trhint,.trbox,.trleg,.tygridall,.evall,.trax{flex-shrink:0}
 .trbox{overflow:hidden}
+.qparts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.qpart{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px;border-radius:14px;background:var(--card-2);font-size:12px;color:var(--ink-3);font-weight:600}
+.qpart b{font:800 22px/1 var(--display);color:var(--ink-3)}
+.qpart.on{background:var(--green-soft);color:var(--green)}
+.qpart.on b{color:var(--ink)}
