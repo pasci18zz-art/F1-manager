@@ -704,3 +704,6 @@ svg.trace .tipt{fill:var(--ink);font:600 14px var(--body)}
 .qpart b{font:800 22px/1 var(--display);color:var(--ink-3)}
 .qpart.on{background:var(--green-soft);color:var(--green)}
 .qpart.on b{color:var(--ink)}
+.rimp-files{display:flex;flex-wrap:wrap;gap:8px}
+.rimp-file{display:flex;flex-direction:column;background:var(--card-2);border-radius:14px;padding:8px 12px;font-size:12px;color:var(--ink-3);font-weight:600}
+.rimp-file b{font:800 20px/1.1 var(--display);color:var(--ink)}

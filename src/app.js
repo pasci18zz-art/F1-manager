@@ -1282,13 +1282,19 @@ function fmtGap(v){
 }
 /* Liest die Text-Datei. Gibt {rep} oder {err} zurück. */
 function parseRaceFile(txt){
-  var L=String(txt||"").replace(/\r/g,"").replace(/\t/g,"    ").split("\n"), secs=[], cur={title:"", lines:[]}, i;
+  var L=String(txt||"").replace(/\r/g,"").replace(/\t/g,"    ").replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g," ").split("\n"), secs=[], cur={title:"", lines:[]}, i;
   for(i=0;i<L.length;i++){
     if(i+1<L.length && L[i].trim() && /^\s*[-=]{3,}\s*$/.test(L[i+1])){ secs.push(cur); cur={title:L[i].trim(), lines:[]}; i++; continue; }
     cur.lines.push(L[i]);
   }
   secs.push(cur);
   function sec(name){ for(var k=0;k<secs.length;k++) if(normName(secs[k].title).indexOf(name)===0) return secs[k].lines; return []; }
+  function resSec(){
+    var names=["endergebnis","ergebnis","resultat","result","klassement","wertung","rangliste"];
+    for(var a=0;a<names.length;a++) for(var k=0;k<secs.length;k++) if(normName(secs[k].title).indexOf(names[a])===0) return secs[k];
+    for(k=0;k<secs.length;k++) if(/ergebnis|result/.test(normName(secs[k].title))) return secs[k];
+    return null;
+  }
   var head=null; secs.forEach(function(s){ if(!head && s.title) head=s; });
   if(!head) return {err:"Das sieht nicht wie eine Rennen-Datei aus."};
   var rep={v:1, kind:"r", track:"", me:"", at:"", laps:null, total:null, wx:[], rows:[], fl:null, ev:[], pos:null, st:[], lt:[], map:{}};
@@ -1325,29 +1331,44 @@ function parseRaceFile(txt){
     if(!m) return;
     rep.wx.push({t:m[2] ? m[2]+" min" : "Start", s:m[2] ? timeSec(m[2]) : 0, x:m[3].trim(), k:wxFromText(m[3]), tr:m[4]!=null ? +m[4] : null, air:m[5]!=null ? +m[5] : null});
   });
-  // Qualifying-Ergebnis: Zeit, auf P1, Vordermann, Runden, ungültig, Reifen
-  if(isQ) sec("ergebnis").forEach(function(l){
-    var m=/^\s*(\d+)\s+(.+?)\s+(\d+:\d{2}\.\d+|keine zeit|ohne zeit|[-–]+)(?:\s+\+([\d:.]+))?(?:\s+\+([\d:.]+))?\s+(\d+)\s+(\d+)(?:\s+([SMHIW](?:-[SMHIW])*))?\s*(<--.*)?$/i.exec(l);
-    if(!m) return;
-    var row={n:splitName(m[2]), pos:+m[1], time:/\d/.test(m[3]) ? m[3] : "", gap:m[4] ? timeSec(m[4]) : (+m[1]===1 ? 0 : null), iv:m[5] ? timeSec(m[5]) : null, laps:+m[6], inv:+m[7], ty:m[8]||"", dnf:false};
-    if(m[9]) rep.me=row.n;
+  // Ergebnis: erst das Renn-Muster, dann das Quali-Muster, sonst locker lesen
+  var RS=resSec(), resLines=RS ? RS.lines : [], gotQ=0, gotR=0, firstBad="";
+  resLines.forEach(function(l){
+    if(!/^\s*\d+\s+\S/.test(l)) return;
+    var m=/^\s*(\d+)\s+(.+?)\s+(\d+)\s+(\S.*?)\s+(\d+:\d{2}\.\d+|[-–]+)\s+(\d+)\s+([SMHIW](?:-[SMHIW])*)?\s*(<--.*)?$/.exec(l), row, t, g;
+    if(m && !isQ){
+      row={n:splitName(m[2]), pos:+m[1], start:+m[3], txt:m[4].trim(), gap:null, lapped:0, dnf:false, lap:null, why:"", time:"", best:/\d/.test(m[5]) ? m[5] : "", ty:m[7]||""};
+      t=row.txt;
+      if(/^\d+:\d{2}(:\d{2})?\.\d+$/.test(t)){ row.time=t; row.gap=0; }
+      else if((g=/^\+\s*(\d+)\s*Runde/i.exec(t))) row.lapped=+g[1];
+      else if(/^\+\s*[\d:.]+$/.test(t)) row.gap=timeSec(t);
+      else if((g=/Runde\s*(\d+)\s*:\s*(.*)$/i.exec(t))){ row.dnf=true; row.lap=+g[1]; row.why=g[2]; }
+      else { row.dnf=true; row.why=t; }
+      if(m[8]) rep.me=row.n;
+      gotR++; rep.rows.push(row); return;
+    }
+    m=/^\s*(\d+)\s+(.+?)\s+(\d+:\d{2}\.\d+|keine zeit|ohne zeit|[-–]+)(?:\s+\+([\d:.]+))?(?:\s+\+([\d:.]+))?\s+(\d+)\s+(\d+)(?:\s+([SMHIW](?:-[SMHIW])*))?\s*(<--.*)?$/i.exec(l);
+    if(m){
+      row={n:splitName(m[2]), pos:+m[1], time:/\d/.test(m[3]) ? m[3] : "", gap:m[4] ? timeSec(m[4]) : (+m[1]===1 ? 0 : null), iv:m[5] ? timeSec(m[5]) : null, laps:+m[6], inv:+m[7], ty:m[8]||"", dnf:false};
+      if(m[9]) rep.me=row.n;
+      gotQ++; rep.rows.push(row); return;
+    }
+    // locker: Platz, Name, irgendwo eine Zeit
+    m=/^\s*(\d+)\s+(\S.*?)\s*$/.exec(l);
+    if(!m){ if(!firstBad) firstBad=l.trim(); return; }
+    var rest=m[2], me=/<--/.test(rest); rest=rest.replace(/\s*<--.*$/,"");
+    var cut=rest.search(/\s{2,}|\s+[+\d]/), nm=splitName(cut>0 ? rest.slice(0,cut) : rest), tail=cut>0 ? rest.slice(cut) : "";
+    var tm2=/(\d+:\d{2}\.\d+)/.exec(tail), gp=/\+\s*([\d:]+\.\d+)/.exec(tail), ty=/\b([SMHIW](?:-[SMHIW])+|[SMHIW])\s*$/.exec(tail);
+    row={n:nm, pos:+m[1], time:tm2 && !gp ? tm2[1] : "", gap:gp ? timeSec(gp[1]) : (+m[1]===1 ? 0 : null), ty:ty ? ty[1] : "", dnf:/runde\s*\d+\s*:|dnf|aufgegeben|ausgefallen/i.test(tail), lap:null, why:"", start:null, txt:tail.trim()};
+    var dl=/runde\s*(\d+)\s*:\s*([^\d]*)/i.exec(tail); if(dl){ row.lap=+dl[1]; row.why=dl[2].trim(); }
+    if(me) rep.me=row.n;
     rep.rows.push(row);
   });
-  // Endergebnis
-  if(!isQ) sec("endergebnis").forEach(function(l){
-    var m=/^\s*(\d+)\s+(.+?)\s+(\d+)\s+(\S.*?)\s+(\d+:\d{2}\.\d+|[-–]+)\s+(\d+)\s+([SMHIW](?:-[SMHIW])*)?\s*(<--.*)?$/.exec(l);
-    if(!m) return;
-    var row={n:splitName(m[2]), pos:+m[1], start:+m[3], txt:m[4].trim(), gap:null, lapped:0, dnf:false, lap:null, why:"", time:"", best:/\d/.test(m[5]) ? m[5] : "", ty:m[7]||""};
-    var t=row.txt, g;
-    if(/^\d+:\d{2}(:\d{2})?\.\d+$/.test(t)){ row.time=t; row.gap=0; }
-    else if((g=/^\+\s*(\d+)\s*Runde/i.exec(t))) row.lapped=+g[1];
-    else if(/^\+\s*[\d:.]+$/.test(t)) row.gap=timeSec(t);
-    else if((g=/Runde\s*(\d+)\s*:\s*(.*)$/i.exec(t))){ row.dnf=true; row.lap=+g[1]; row.why=g[2]; }
-    else { row.dnf=true; row.why=t; }
-    if(m[8]) rep.me=row.n;
-    rep.rows.push(row);
-  });
-  if(rep.rows.length<1 || (!isQ && rep.rows.length<2)) return {err:isQ ? "Im Abschnitt „Ergebnis“ wurden keine Fahrer gefunden." : "Im Abschnitt „Endergebnis“ wurden keine Fahrer gefunden."};
+  if(!isQ && gotQ && gotQ>=gotR){ isQ=true; rep.kind="q"; rep.part=rep.part||"0"; }
+  if(rep.rows.length<1){
+    var found=secs.filter(function(x){ return x.title; }).map(function(x){ return "„"+x.title+"“"; }).join(", ");
+    return {err:(RS ? "Im Abschnitt „"+RS.title+"“ wurden keine Fahrer erkannt."+(firstBad ? " Erste Zeile: "+firstBad.slice(0,90) : "") : "Kein Ergebnis-Abschnitt gefunden.")+" Gefundene Abschnitte: "+(found||"keine")+"."};
+  }
   rep.rows.sort(function(a,b){ return a.pos-b.pos; });
   function rowOf(n){ for(var k=0;k<rep.rows.length;k++) if(rep.rows[k].n===n) return rep.rows[k]; return null; }
   // Schnellste Runde
@@ -1435,44 +1456,64 @@ function guessRaceFor(track){
   return ui.race;
 }
 function openRaceImport(){ SH={type:"rimp", step:1, text:""}; showSheet(); }
+/* Mehrere Exporte hintereinander eingefügt: an jeder Titelzeile mit ===== trennen */
+function splitFiles(txt){
+  var L=String(txt||"").replace(/\r/g,"").split("\n"), starts=[], i;
+  for(i=0;i+1<L.length;i++) if(L[i].trim() && /^\s*={3,}\s*$/.test(L[i+1])) starts.push(i);
+  if(starts.length<2) return [txt];
+  return starts.map(function(st,k){ return L.slice(st, k+1<starts.length ? starts[k+1] : L.length).join("\n"); });
+}
+function repLabel(rep){ return (rep.kind==="q" || rep.kind==="sq") ? (rep.kind==="sq" ? "SQ" : "Q")+(rep.part!=="0" ? rep.part : "") : (rep.kind==="s" ? "Sprint" : "Rennen"); }
 function raceImportParse(){
   var ta=$("rimp-text"); if(ta) SH.text=ta.value;
-  var r=parseRaceFile(SH.text);
-  if(r.err){ SH.err=r.err; SH.keepScroll=true; renderSheet(); return; }
-  var rep=r.rep, map={}, used={};
-  rep.rows.forEach(function(x){ var d=matchFileDriver(x.n); if(d!=null && !used[d]){ map[x.n]=d; used[d]=1; } else map[x.n]=null; });
-  if(rep.me && map[rep.me]==null){
-    for(var d=0; d<ND; d++){ var nm=normName(dname(d)); if((nm==="du" || nm==="ich") && !used[d]){ map[rep.me]=d; used[d]=1; break; } }
+  var reps=[], errs=[];
+  splitFiles(SH.text).forEach(function(t){ if(!t.trim()) return; var r=parseRaceFile(t); if(r.err) errs.push(r.err); else reps.push(r.rep); });
+  if(!reps.length){ SH.err=errs.join(" \u2022 ") || "Kein Text eingefügt."; SH.keepScroll=true; renderSheet(); return; }
+  // Rennen zuletzt, Quali-Teile der Reihe nach
+  reps.sort(function(a,b){ var o={q:0,sq:0,s:1,r:2}; return (o[a.kind]-o[b.kind]) || ((+a.part||0)-(+b.part||0)); });
+  var names=[], seen={};
+  reps.slice().sort(function(a,b){ return b.rows.length-a.rows.length; }).forEach(function(rp){
+    rp.rows.forEach(function(x){ if(!seen[x.n]){ seen[x.n]=1; names.push({n:x.n, pos:x.pos, dnf:x.dnf, me:x.n===rp.me}); } });
+  });
+  var map={}, used={};
+  names.forEach(function(x){ var d=matchFileDriver(x.n); if(d!=null && !used[d]){ map[x.n]=d; used[d]=1; } else map[x.n]=null; });
+  var me=null; reps.forEach(function(r){ if(r.me) me=r.me; });
+  if(me && map[me]==null){
+    for(var d=0; d<ND; d++){ var nm=normName(dname(d)); if((nm==="du" || nm==="ich") && !used[d]){ map[me]=d; used[d]=1; break; } }
   }
-  SH.rep=rep; SH.map=map; SH.rid=guessRaceFor(rep.track); SH.step=2; SH.err=""; renderSheet();
+  SH.reps=reps; SH.names=names; SH.map=map; SH.rid=guessRaceFor(reps[0].track); SH.step=2; SH.err=errs.length ? errs.length+" Teil(e) nicht lesbar: "+errs.join(" \u2022 ") : ""; renderSheet();
 }
 function sheetRaceImport(){
   if(SH.step===1){
-    return {title:"Rennen-Datei einlesen", body:
-      '<p class="small muted" style="margin:0">Füge den Text aus deinem Mitschreib-Programm ein oder wähle die Datei. Die App trägt dann Ergebnis, schnellste Runde, Ausfälle und Wetter ein und merkt sich Rennverlauf, Reifen und Ereignisse.</p>'+
+    return {title:"Datei einlesen", body:
+      '<p class="small muted" style="margin:0">Füge den Text aus deinem Mitschreib-Programm ein oder wähle die Datei(en). Du kannst auch mehrere auf einmal einfügen, zum Beispiel Q1, Q2 und Q3 untereinander oder Qualifying und Rennen zusammen.</p>'+
       '<textarea class="notes" id="rimp-text" spellcheck="false" placeholder="RENNEN - MONZA&#10;==============&#10;…" style="min-height:180px;font:12px var(--mono)">'+esc(SH.text||"")+'</textarea>'+
       (SH.err ? '<div class="banner" style="margin:0">'+esc(SH.err)+'</div>' : '')+
-      '<button type="button" class="btn" data-act="rimp-file">'+ico(IC.upload,18)+' Datei wählen</button>',
+      '<button type="button" class="btn" data-act="rimp-file">'+ico(IC.upload,18)+' Datei(en) wählen</button>',
       foot:'<button type="button" class="btn" data-act="sheet-close">Abbrechen</button><button type="button" class="btn pri" data-act="rimp-parse">Einlesen</button>'};
   }
-  var rep=SH.rep, miss=0, fin=rep.rows.filter(function(x){ return !x.dnf; }).length;
-  rep.rows.forEach(function(x){ if(SH.map[x.n]==null) miss++; });
-  var R=S.races[raceIndex(SH.rid)], warn=R && rep.track && normName(R.name).indexOf(normName(rep.track))<0 && normName(rep.track).indexOf(normName(R.name))<0;
-  var isQ=rep.kind==="q" || rep.kind==="sq";
-  var body=(isQ ? '<div class="rimp-sum"><span><b class="num">'+rep.rows.length+'</b>Fahrer</span><span><b class="num">'+(rep.part!=="0" ? "Q"+rep.part : "–")+'</b>Teil</span><span><b class="num">'+rep.wx.length+'</b>Wetter</span><span><b class="num">'+esc((rep.rows[0]||{}).time||"–")+'</b>Pole-Zeit</span></div>'
-      : '<div class="rimp-sum"><span><b class="num">'+rep.rows.length+'</b>Fahrer</span><span><b class="num">'+(rep.laps||"–")+'</b>Runden</span><span><b class="num">'+rep.wx.length+'</b>Wetter</span><span><b class="num">'+(rep.rows.length-fin)+'</b>Ausfälle</span></div>')+
-    '<div class="field"><label for="rimp-race">Für welches Rennen?'+(rep.track ? ' (Datei: '+esc(rep.track)+')' : '')+'</label><select class="inp" id="rimp-race" data-chg="rimp-race">'+S.races.map(function(x){
-      return '<option value="'+esc(x.id)+'"'+(x.id===SH.rid ? ' selected' : '')+'>'+esc((x.flag ? x.flag+" " : "")+x.name)+(raceDriven(x.id) ? ' – schon eingetragen' : '')+'</option>'; }).join("")+'</select>'+
+  var reps=SH.reps, miss=0, track="";
+  reps.forEach(function(r){ if(r.track && !track) track=r.track; });
+  SH.names.forEach(function(x){ if(SH.map[x.n]==null) miss++; });
+  var R=S.races[raceIndex(SH.rid)], warn=R && track && normName(R.name).indexOf(normName(track))<0 && normName(track).indexOf(normName(R.name))<0;
+  var hasRace=reps.some(function(r){ return r.kind==="r" || r.kind==="s"; }), qParts=reps.filter(function(r){ return r.kind==="q" || r.kind==="sq"; });
+  var body='<div class="rimp-files">'+reps.map(function(r){
+      var extra=(r.kind==="q" || r.kind==="sq") ? ((r.rows[0]||{}).time ? 'Pole '+esc(r.rows[0].time) : '') : (r.laps ? r.laps+' Runden' : '');
+      return '<span class="rimp-file"><b>'+esc(repLabel(r))+'</b>'+r.rows.length+' Fahrer'+(extra ? ' \u00B7 '+extra : '')+'</span>';
+    }).join("")+'</div>'+
+    (SH.err ? '<div class="banner" style="margin:0">'+esc(SH.err)+'</div>' : '')+
+    '<div class="field"><label for="rimp-race">Für welches Rennen?'+(track ? ' (Datei: '+esc(track)+')' : '')+'</label><select class="inp" id="rimp-race" data-chg="rimp-race">'+S.races.map(function(x){
+      return '<option value="'+esc(x.id)+'"'+(x.id===SH.rid ? ' selected' : '')+'>'+esc((x.flag ? x.flag+" " : "")+x.name)+(raceDriven(x.id) ? ' \u2013 schon eingetragen' : '')+'</option>'; }).join("")+'</select>'+
     (warn ? '<span class="small" style="color:var(--red)">Achtung: Der Streckenname passt nicht zur Datei.</span>' : '')+
-    (isQ ? '<span class="small muted">'+(rep.part!=="0" ? 'Q1, Q2 und Q3 einzeln einlesen \u2013 die App setzt daraus die Startaufstellung zusammen.' : '')+'</span>'
-         : (raceDriven(SH.rid) ? '<span class="small muted">Das Rennergebnis dieses Wochenendes wird ersetzt. Qualifying und Sprint bleiben.</span>' : ''))+'</div>'+
-    '<div class="field"><span class="lbl2">Fahrer zuordnen'+(miss ? ' · <span style="color:var(--red)">'+miss+' offen</span>' : ' · alle erkannt')+'</span>'+
-    rep.rows.map(function(x,i){
+    (qParts.length && qParts.length<3 && qParts[0].part!=="0" ? '<span class="small muted">Fehlende Quali-Teile kannst du später nachreichen \u2013 die App setzt die Startaufstellung dann neu zusammen.</span>' : '')+
+    (hasRace && raceDriven(SH.rid) ? '<span class="small muted">Das Rennergebnis dieses Wochenendes wird ersetzt.</span>' : '')+'</div>'+
+    '<div class="field"><span class="lbl2">Fahrer zuordnen'+(miss ? ' \u00B7 <span style="color:var(--red)">'+miss+' offen</span>' : ' \u00B7 alle erkannt')+'</span>'+
+    SH.names.map(function(x,i){
       var d=SH.map[x.n];
-      return '<div class="rimp-row'+(d==null ? ' miss' : '')+'"><span class="num rp">'+(x.dnf ? '✕' : x.pos)+'</span><span class="fn">'+esc(x.n)+(x.n===rep.me ? ' <span class="du">DU</span>' : '')+'</span>'+
-        drvSelect(d, 'data-chg="rimp-map" data-i="'+i+'" aria-label="App-Fahrer für '+esc(x.n)+'"', "– nicht übernehmen –")+'</div>';
+      return '<div class="rimp-row'+(d==null ? ' miss' : '')+'"><span class="num rp">'+(x.dnf ? '\u2715' : x.pos)+'</span><span class="fn">'+esc(x.n)+(x.me ? ' <span class="du">DU</span>' : '')+'</span>'+
+        drvSelect(d, 'data-chg="rimp-map" data-i="'+i+'" aria-label="App-Fahrer für '+esc(x.n)+'"', "\u2013 nicht übernehmen \u2013")+'</div>';
     }).join("")+'<span class="small muted">Die Zuordnung merkt sich die App für die nächsten Rennen.</span></div>';
-  return {title:(isQ ? qLabel(rep.kind, rep.part) : rep.kind==="s" ? "Sprint" : "Rennen")+(rep.track ? " · "+rep.track : ""), body:body,
+  return {title:(reps.length>1 ? reps.length+" Dateien" : (reps[0].kind==="q" || reps[0].kind==="sq") ? qLabel(reps[0].kind, reps[0].part) : reps[0].kind==="s" ? "Sprint" : "Rennen")+(track ? " \u00B7 "+track : ""), body:body,
     foot:'<button type="button" class="btn" data-act="rimp-back">Zurück</button><button type="button" class="btn pri" data-act="rimp-apply">Übernehmen</button>'};
 }
 function qLabel(k, part){ return (k==="sq" ? "Sprint-Quali" : "Qualifying")+(part && part!=="0" ? " "+part : ""); }
@@ -1497,9 +1538,9 @@ function qCombine(Q){
   return {rows:rows, wx:wx, me:me, fl:fl, parts:keys};
 }
 function qrepOf(id, k){ var R=S.res[id]; return R && R.rep && R.rep[k] && R.rep[k].parts ? qCombine(R.rep[k]) : null; }
-function applyQualiFile(){
-  var rep=SH.rep, rid=SH.rid, map=SH.map, R=S.res[rid], k=rep.kind;
-  if(!R) return;
+function applyQualiFile(rep, rid, map){
+  var R=S.res[rid], k=rep.kind;
+  if(!R) return null;
   rep.map={}; S.alias=S.alias||{};
   rep.rows.forEach(function(x){ var d=map[x.n]; rep.map[x.n]= d==null ? null : d; if(d!=null) S.alias[normName(x.n)]=d; });
   R.rep=R.rep||{};
@@ -1522,14 +1563,19 @@ function applyQualiFile(){
       all.forEach(function(s){ R.memo.tyres.push({d:me, sess:k, c:s.c, laps:s.b-s.a+1, pit:null, wear:s.w}); });
     }
   }
-  ui.race=rid; ui.sess=k;
-  touch(); closeSheet(); render(true);
-  toast(qLabel(k, rep.part)+" eingelesen \u2013 "+rep.rows.filter(function(x){ return map[x.n]!=null; }).length+" Fahrer");
+  return k;
 }
 function applyRaceFile(){
-  var rep=SH.rep, rid=SH.rid, map=SH.map, R=S.res[rid], k=rep.kind==="s" ? "s" : "r";
-  if(rep.kind==="q" || rep.kind==="sq") return applyQualiFile();
-  if(!R) return;
+  var rid=SH.rid, map=SH.map, last=null, labels=[];
+  SH.reps.forEach(function(rep){ var k=(rep.kind==="q" || rep.kind==="sq") ? applyQualiFile(rep, rid, map) : applyRaceOne(rep, rid, map); if(k){ last=k; labels.push(repLabel(rep)); } });
+  if(!last) return;
+  ui.race=rid; ui.sess=last;
+  touch(); closeSheet(); render(true);
+  toast(labels.join(", ")+" eingelesen");
+}
+function applyRaceOne(rep, rid, map){
+  var R=S.res[rid], k=rep.kind==="s" ? "s" : "r";
+  if(!R) return null;
   rep.map={};
   S.alias=S.alias||{};
   rep.rows.forEach(function(x){ var d=map[x.n]; rep.map[x.n]= d==null ? null : d; if(d!=null) S.alias[normName(x.n)]=d; });
@@ -1547,9 +1593,7 @@ function applyRaceFile(){
     st.s.forEach(function(s,i){ var nx=st.s[i+1]; R.memo.tyres.push({d:me, sess:k, c:s.c, laps:s.b-s.a+1, pit:nx ? nx.a : null, wear:s.w}); });
   }
   R.rep=R.rep||{}; R.rep[k]=rep;
-  ui.race=rid; ui.sess=k;
-  touch(); closeSheet(); render(true);
-  toast((k==="s" ? "Sprint" : "Rennen")+" eingelesen – "+rep.rows.filter(function(x){ return map[x.n]!=null; }).length+" Fahrer");
+  return k;
 }
 function cleanRep(o){
   if(!o || typeof o!=="object") return null;
@@ -3088,7 +3132,7 @@ document.addEventListener("change", function(e){
   switch(k){
     case "race-count": setRaceCount(parseInt(v,10)); break;
     case "rimp-race": SH.rid=v; SH.keepScroll=true; renderSheet(); break;
-    case "rimp-map": { var rr=SH.rep.rows[+el.getAttribute("data-i")], nv= v==="" ? null : +v;
+    case "rimp-map": { var rr=SH.names[+el.getAttribute("data-i")], nv= v==="" ? null : +v;
       if(nv!=null) Object.keys(SH.map).forEach(function(n){ if(SH.map[n]===nv) SH.map[n]=null; });
       SH.map[rr.n]=nv; SH.keepScroll=true; renderSheet(); break; }
     case "memo-drv-d": { var X=memoOf().drv[+el.getAttribute("data-i")]; if(X){ X.d= v==="" ? null : +v; touch(); } break; }
@@ -3108,10 +3152,12 @@ $("file-json").addEventListener("change", function(){
   fr.readAsText(f);
 });
 $("file-race").addEventListener("change", function(){
-  var f=this.files && this.files[0]; if(!f) return;
-  var fr=new FileReader();
-  fr.onload=function(){ if(SH && SH.type==="rimp"){ SH.text=String(fr.result); var ta=$("rimp-text"); if(ta) ta.value=SH.text; raceImportParse(); } };
-  fr.readAsText(f);
+  var fs=[].slice.call(this.files||[]); if(!fs.length) return;
+  Promise.all(fs.map(function(f){ return new Promise(function(ok){ var fr=new FileReader(); fr.onload=function(){ ok(String(fr.result)); }; fr.onerror=function(){ ok(""); }; fr.readAsText(f); }); })).then(function(txts){
+    if(!SH || SH.type!=="rimp") return;
+    var ta=$("rimp-text"), cur=ta ? ta.value.trim() : "";
+    SH.text=(cur ? cur+"\n\n" : "")+txts.join("\n\n"); if(ta) ta.value=SH.text; raceImportParse();
+  });
 });
 $("scrim").addEventListener("click", closeSheet);
 /* Wischen links/rechts wechselt den Tab */
