@@ -2106,7 +2106,7 @@ function parseRaceFile(txt){
   var RS=resSec(), resLines=RS ? RS.lines : [], gotQ=0, gotR=0, firstBad="";
   resLines.forEach(function(l){
     if(!/^\s*\d+\s+\S/.test(l)) return;
-    var m=/^\s*(\d+)\s+(.+?)\s+(\d+)\s+(\S.*?)\s+(\d+:\d{2}\.\d+|[-–]+)\s+(\d+)\s+([SMHIW](?:-[SMHIW])*)?\s*(<--.*)?$/.exec(l), row, t, g;
+    var m=/^\s*(\d+)\s+(.+?)\s+(\d+)\s+(\S.*?)\s+(\d+:\d{2}\.\d+|[-–]+)\s+(\d+|[-–]+)\s+([SMHIW](?:-[SMHIW])*)?\s*(<--.*)?$/.exec(l), row, t, g;
     if(m && !isQ){
       row={n:splitName(m[2]), pos:+m[1], start:+m[3], txt:m[4].trim(), gap:null, lapped:0, dnf:false, lap:null, why:"", time:"", best:/\d/.test(m[5]) ? m[5] : "", ty:m[7]||""};
       t=row.txt;
@@ -2114,6 +2114,7 @@ function parseRaceFile(txt){
       else if((g=/^\+\s*(\d+)\s*Runde/i.exec(t))) row.lapped=+g[1];
       else if(/^\+\s*[\d:.]+$/.test(t)) row.gap=timeSec(t);
       else if((g=/Runde\s*(\d+)\s*:\s*(.*)$/i.exec(t))){ row.dnf=true; row.lap=+g[1]; row.why=g[2]; }
+      else if(/^[-–]+$/.test(t)){ /* keine Zeit in der Datei */ }
       else { row.dnf=true; row.why=t; }
       if(m[8]) rep.me=row.n;
       gotR++; rep.rows.push(row); return;
