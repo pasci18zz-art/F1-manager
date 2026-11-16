@@ -1805,7 +1805,7 @@ function vRace(){
 }
 function resultCard(id, sess, k, rep){
   var R=S.res[id], race=S.races[raceIndex(id)];
-  var head='<div class="chead"><h2>Ergebnis · '+esc(race.name)+'</h2><button type="button" class="btn sm" data-act="entry-open">'+ico(IC.pen,15)+' Eintragen</button></div>'+
+  var head='<div class="chead"><h2>Ergebnis · '+esc(race.name)+'</h2>'+sessTools(id, k)+'</div>'+
     (sess.length>1 ? '<div class="seg sm" role="group" aria-label="Session" style="margin-bottom:10px">'+segBtns("sess", k, sess.map(function(s){ return [s, SESSSHORT[s]]; }))+'</div>' : '');
   var rows=[];
   if(rep){
@@ -1866,7 +1866,7 @@ function resultCard(id, sess, k, rep){
 }
 function qualiCard(id, sess, k, Q){
   var race=S.races[raceIndex(id)];
-  var head='<div class="chead"><h2>'+esc(SESSSHORT[k])+' \u00B7 '+esc(race.name)+'</h2><button type="button" class="btn sm" data-act="entry-open">'+ico(IC.pen,15)+' Eintragen</button></div>'+
+  var head='<div class="chead"><h2>'+esc(SESSSHORT[k])+' \u00B7 '+esc(race.name)+'</h2>'+sessTools(id, k)+'</div>'+
     (sess.length>1 ? '<div class="seg sm" role="group" aria-label="Session" style="margin-bottom:10px">'+segBtns("sess", k, sess.map(function(s){ return [s, SESSSHORT[s]]; }))+'</div>' : '');
   function badge(x){ return x.d!=null ? dNumSm2(x.d) : '<span class="dnum" style="background:#4A4F60;color:#fff">'+esc(String(x.n).slice(0,2).toUpperCase())+'</span>'; }
   function nm(x){ return x.d!=null ? dname(x.d) : x.n; }
@@ -1897,6 +1897,33 @@ function qPartsCard(id, k, Q){
     (Q.fl ? '<div class="ev" style="border-top:0"><i class="evk p">'+ico(IC.bolt,11,2.6)+'</i><span>Schnellste Runde: '+esc(Q.fl.n===Q.me ? "du" : (Q.fl.d!=null ? dname(Q.fl.d) : Q.fl.n))+'<small>'+esc(Q.fl.t)+(Q.fl.part!=="0" ? ' in Q'+esc(Q.fl.part) : '')+'</small></span></div>' : '')+
     (Q.rows.length<ND ? '<p class="small muted" style="margin:6px 0 0">Ab Platz '+(Q.rows.length+1)+' gilt, was du von Hand eingetragen hast.</p>' : '')+
     '<button type="button" class="btn" data-act="rimp" style="margin-top:8px">'+ico(IC.upload,18)+' Weiteren Teil einlesen</button></div>';
+}
+/* Eintragen + Löschen einer Session */
+function hasSessData(id, k){ var R=S.res[id]; if(!R) return false; if(R.rep && R.rep[k]) return true; for(var d=0; d<MAXD; d++) if(R[k][d]!=null) return true; return false; }
+function sessTools(id, k){
+  return '<span class="row" style="gap:6px;flex-wrap:nowrap">'+(hasSessData(id, k) ? '<button type="button" class="iconbtn" data-act="sess-del" data-v="'+k+'" aria-label="'+esc(SESSLBL[k])+' löschen" title="'+esc(SESSLBL[k])+' löschen">'+ico(IC.trash,17)+'</button>' : '')+
+    '<button type="button" class="btn sm" data-act="entry-open">'+ico(IC.pen,15)+' Eintragen</button></span>';
+}
+function delSession(k){
+  var id=ui.race, R=S.res[id], race=S.races[raceIndex(id)];
+  askConfirm({title:esc(SESSLBL[k])+" löschen?", text:"Das "+esc(SESSLBL[k])+" von <b>"+esc(race.name)+"</b> wird komplett geleert \u2013 auch alles, was aus einer Datei eingelesen wurde. Danach kannst du neu einlesen oder von Hand eintragen.", ok:"Löschen", danger:true,
+    onOk:function(){
+      R[k]=nulls();
+      if(R.rep){ delete R.rep[k]; if(!Object.keys(R.rep).length) delete R.rep; }
+      if(k==="r") R.flr=null; if(k==="s") R.fls=null;
+      if(R.wx) delete R.wx[k];
+      touch(); refresh(); toast(SESSLBL[k]+" gelöscht");
+    }});
+}
+/* Von Hand bearbeiten: Datei-Daten passen dann nicht mehr und werden verworfen, das Ergebnis bleibt */
+function editSession(k){
+  var R=S.res[ui.race];
+  if(R && R.rep && R.rep[k]){
+    askConfirm({title:"Von Hand bearbeiten?", text:"Für das "+esc(SESSLBL[k])+" sind Daten aus einer Datei eingelesen. Wenn du von Hand änderst, werden Zeiten und Abstände aus der Datei entfernt. Die Plätze bleiben und du kannst sie ändern.", ok:"Bearbeiten",
+      onOk:function(){ delete R.rep[k]; if(!Object.keys(R.rep).length) delete R.rep; touch(); refresh(); ui.sess=k; openEntry(k); }});
+    return;
+  }
+  ui.sess=k; openEntry(k);
 }
 function dNumSm2(d){ var t=teamOfD(d), c=t ? t.color : "#4A4F60", n=dnum(d); return '<span class="dnum" style="background:'+c+';color:'+inkOn(c)+'">'+(n ? esc(n) : '–')+'</span>'; }
 function wxCard(id, k, rep){
@@ -2001,7 +2028,7 @@ function sheetQuali(){
     out+='<div class="field"><span class="lbl2">'+esc(SESSLBL[k])+'</span>'+(rows.length ? rows.map(function(x){
       return '<div class="qrow"><span class="ps num">'+x.p+'</span>'+dNumSm2(x.d)+'<span class="nm">'+esc(dname(x.d))+'</span><span class="tm muted">'+esc(((teamOfD(x.d))||{}).name||"")+'</span></div>'; }).join("")
       : '<div class="empty small" style="padding:10px 0">Noch nicht eingetragen.</div>')+
-      '<button type="button" class="btn sm" data-act="entry-sess" data-v="'+k+'">'+ico(IC.pen,15)+' '+esc(SESSLBL[k])+' eintragen</button></div>';
+      '<span class="row" style="gap:6px"><button type="button" class="btn sm" data-act="entry-sess" data-v="'+k+'">'+ico(IC.pen,15)+' '+esc(SESSLBL[k])+' eintragen</button>'+(hasSessData(id, k) ? '<button type="button" class="btn sm danger" data-act="sess-del" data-v="'+k+'">'+ico(IC.trash,15)+' Löschen</button>' : '')+'</span></div>';
   });
   return {title:"Qualifying", body:out+'<p class="small muted" style="margin:0">Q1, Q2 und Q3 kannst du einzeln als Datei einlesen. Die App setzt daraus die Startaufstellung zusammen.</p>',
     foot:'<button type="button" class="btn" data-act="rimp">'+ico(IC.upload,18)+' Quali-Datei einlesen</button><button type="button" class="btn pri" data-act="sheet-close">Fertig</button>'};
@@ -2975,8 +3002,9 @@ document.addEventListener("click", function(e){
     case "race-step": { var i=raceIndex(ui.race)+(+v); if(i>=0 && i<S.races.length){ ui.race=S.races[i].id; render(true); } break; }
     case "sess": ui.sess=v; refresh(); break;
     case "entry-toggle": ui.entryOpen=!ui.entryOpen; el.setAttribute("aria-expanded", ui.entryOpen); var rv=el.parentNode.querySelector(".reveal"); if(rv) rv.classList.toggle("open", ui.entryOpen); break;
-    case "entry-open": openEntry(ui.sess); break;
-    case "entry-sess": ui.sess=v; openEntry(v); break;
+    case "entry-open": editSession(ui.sess); break;
+    case "entry-sess": editSession(v); break;
+    case "sess-del": delSession(v); break;
     case "rimp": openRaceImport(); break;
     case "rimp-file": $("file-race").value=""; $("file-race").click(); break;
     case "rimp-parse": raceImportParse(); break;
